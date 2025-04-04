@@ -2,9 +2,23 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
+import * as express from 'express';
+import { json } from 'express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true,
+  });
+
+  // Configure middleware for raw body access
+  app.use(json({
+    verify: (req: express.Request, res: express.Response, buf: Buffer) => {
+      // Make the raw body available for webhook verification
+      if (req.url.includes('/api/webhooks/')) {
+        (req as any).rawBody = buf;
+      }
+    },
+  }));
 
   // Global validation pipe
   app.useGlobalPipes(new ValidationPipe({
@@ -14,6 +28,9 @@ async function bootstrap() {
 
   // Prefix all routes with /api
   app.setGlobalPrefix('api');
+
+  // CORS setup
+  app.enableCors();
 
   // Swagger documentation setup
   const config = new DocumentBuilder()

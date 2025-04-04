@@ -1,7 +1,9 @@
-import { Controller, Post, Headers, Body, UnauthorizedException, Logger } from '@nestjs/common';
+import { Controller, Post, Headers, Body, UnauthorizedException, Logger, RawBodyRequest, Req } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ClerkAuthService } from '../services/clerk-auth.service';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import * as crypto from 'crypto';
+import { Request } from 'express';
 
 @ApiTags('auth')
 @Controller('webhooks/clerk')
@@ -22,15 +24,38 @@ export class ClerkWebhookController {
     @Headers('svix-timestamp') svixTimestamp: string,
     @Headers('svix-signature') svixSignature: string,
     @Body() payload: any,
+    @Req() request: RawBodyRequest<Request>,
   ) {
-    // Verify webhook signature (in a real implementation)
-    // const webhookSecret = this.configService.get<string>('CLERK_WEBHOOK_SECRET');
-    // if (!webhookSecret || !this.verifyWebhookSignature(svixId, svixTimestamp, svixSignature, payload, webhookSecret)) {
-    //   throw new UnauthorizedException('Invalid webhook signature');
-    // }
+    // Verify webhook signature
+    const webhookSecret = this.configService.get<string>('CLERK_WEBHOOK_SECRET');
+
+    // Only verify signature in production
+    if (process.env.NODE_ENV === 'production') {
+      if (!webhookSecret) {
+        this.logger.error('CLERK_WEBHOOK_SECRET is not defined');
+        throw new UnauthorizedException('Webhook secret not configured');
+      }
+
+      if (!svixId || !svixTimestamp || !svixSignature) {
+        this.logger.warn('Missing Svix headers');
+        throw new UnauthorizedException('Missing verification headers');
+      }
+
+      const rawBody = request.rawBody;
+      if (!rawBody) {
+        this.logger.warn('Request rawBody is missing');
+        throw new UnauthorizedException('Invalid request format');
+      }
+
+      if (!this.verifyWebhookSignature(svixId, svixTimestamp, svixSignature, rawBody.toString(), webhookSecret)) {
+        this.logger.warn('Invalid webhook signature');
+        throw new UnauthorizedException('Invalid webhook signature');
+      }
+    }
 
     try {
       const { type, data } = payload;
+      this.logger.log(`Processing Clerk webhook event: ${type}`);
 
       // Handle user.created or user.updated events
       if (type === 'user.created' || type === 'user.updated') {
@@ -50,6 +75,7 @@ export class ClerkWebhookController {
           avatarUrl: image_url,
         });
 
+        this.logger.log(`Successfully processed ${type} event for user ${id}`);
         return { success: true };
       }
 
@@ -60,9 +86,34 @@ export class ClerkWebhookController {
     }
   }
 
-  // In a real implementation, you would add signature verification
-  // private verifyWebhookSignature(svixId: string, svixTimestamp: string, svixSignature: string, payload: any, secret: string): boolean {
-  //   // Implement Svix signature verification
-  //   return true;
-  // }
+  private verifyWebhookSignature(svixId: string, svixTimestamp: string, svixSignature: string, payload: string, secret: string): boolean {
+    try {
+      // Expected signature format is: timestamp.signatures (multiple comma-separated signatures)
+      const signatureParts = svixSignature.split(',');
+      const signatures = signatureParts.map(sig => sig.trim());
+
+      // Create the message to verify
+      const message = `${svixId}.${svixTimestamp}.${payload}`;
+
+      // Decode webhook secret
+      const secretBytes = Buffer.from(secret, 'base64');
+
+      // Check any of the signatures match
+      for (const signature of signatures) {
+        const digest = crypto
+          .createHmac('sha256', secretBytes)
+          .update(message)
+          .digest('base64');
+
+        if (crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest))) {
+          return true;
+        }
+      }
+
+      return false;
+    } catch (error) {
+      this.logger.error(`Error verifying webhook signature: ${error.message}`, error.stack);
+      return false;
+    }
+  }
 } 

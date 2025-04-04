@@ -1,5 +1,4 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { User } from '@prisma/client';
 
 export class UserResponseDto {
   @ApiProperty({ description: 'Unique identifier of the user' })
@@ -17,11 +16,15 @@ export class UserResponseDto {
   @ApiProperty({ description: 'User role' })
   role: string;
 
+  @ApiProperty({ description: 'Date when the user last logged in', required: false })
+  lastLoginAt?: Date;
+
   constructor(user: any) {
     this.id = user.id;
-    this.fullName = user.full_name || user.name;
+    this.fullName = user.full_name;
     this.email = user.email;
-    this.avatarUrl = user.avatar_url || user.avatarUrl;
+    this.avatarUrl = user.avatarUrl;
     this.role = user.role;
+    this.lastLoginAt = user.last_login_at;
   }
 } 
