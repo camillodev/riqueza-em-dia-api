@@ -6,7 +6,7 @@ const transactionBaseSchema = z.object({
   amount: z.number().positive('Amount must be a positive number'),
   description: z.string().min(3, 'Description must be at least 3 characters').max(255, 'Description too long'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
-  category: z.string().uuid('Category must be a valid UUID'),
+  category: z.string().uuid('Category must be a valid UUID').optional(),
   type: z.enum(['income', 'expense'], {
     errorMap: () => ({ message: 'Type must be either income or expense' })
   }),

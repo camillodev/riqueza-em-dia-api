@@ -76,15 +76,17 @@ export class TransactionsService {
         throw new ForbiddenException('Account not found or does not belong to you');
       }
 
-      // Verify that the category exists
-      const category = await this.prisma.category.findUnique({
-        where: {
-          id: createTransactionDto.category,
-        },
-      });
+      // Verify that the category exists (if provided)
+      if (createTransactionDto.category) {
+        const category = await this.prisma.category.findUnique({
+          where: {
+            id: createTransactionDto.category,
+          },
+        });
 
-      if (!category) {
-        throw new NotFoundException(`Category with ID ${createTransactionDto.category} not found`);
+        if (!category) {
+          throw new NotFoundException(`Category with ID ${createTransactionDto.category} not found`);
+        }
       }
 
       // Use a transaction to update the account balance
@@ -95,9 +97,8 @@ export class TransactionsService {
           description: createTransactionDto.description,
           date: new Date(createTransactionDto.date),
           type: createTransactionDto.type,
-          status: createTransactionDto.status,
           accountId: createTransactionDto.account,
-          categoryId: createTransactionDto.category
+          categoryId: createTransactionDto.category || null
         });
 
         // Update account balance
@@ -150,7 +151,7 @@ export class TransactionsService {
         }
       }
 
-      // If category is changing, verify it exists
+      // If category is changing, verify it exists (if not null)
       if (updateTransactionDto.category && updateTransactionDto.category !== existingTransaction.categoryId) {
         const category = await this.prisma.category.findUnique({
           where: { id: updateTransactionDto.category },
@@ -167,9 +168,8 @@ export class TransactionsService {
         ...(updateTransactionDto.description && { description: updateTransactionDto.description }),
         ...(updateTransactionDto.date && { date: new Date(updateTransactionDto.date) }),
         ...(updateTransactionDto.type && { type: updateTransactionDto.type }),
-        ...(updateTransactionDto.status && { status: updateTransactionDto.status }),
         ...(updateTransactionDto.account && { accountId: updateTransactionDto.account }),
-        ...(updateTransactionDto.category && { categoryId: updateTransactionDto.category }),
+        ...(updateTransactionDto.category !== undefined && { categoryId: updateTransactionDto.category }),
       };
 
       // Use a transaction to update both the transaction and adjust account balances
@@ -277,7 +277,6 @@ export class TransactionsService {
       type: transaction.type,
       account: transaction.account?.name || 'Unknown Account',
       accountId: transaction.accountId,
-      status: transaction.status,
     };
   }
 } 

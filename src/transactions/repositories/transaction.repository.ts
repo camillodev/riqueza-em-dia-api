@@ -87,7 +87,7 @@ export class TransactionRepository {
       type: 'income' | 'expense';
       status: 'pending' | 'completed' | 'canceled';
       accountId: string;
-      categoryId: string;
+      categoryId: string | null;
     }
   ): Promise<Transaction> {
     return this.prisma.transaction.create({
