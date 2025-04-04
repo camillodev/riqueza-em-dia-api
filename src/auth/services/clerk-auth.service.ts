@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UserResponseDto } from '../../users/dto/user-response.dto';
+import { ClerkUserDataDto } from '../dto/clerk-auth.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ClerkAuthService {
@@ -14,20 +16,13 @@ export class ClerkAuthService {
    * Get or create a user based on Clerk authentication
    * This should be called after Clerk authenticates a user
    */
-  async getOrCreateUser(
-    clerkData: {
-      clerkId: string;
-      email: string;
-      fullName: string;
-      avatarUrl?: string;
-    },
-  ): Promise<UserResponseDto> {
+  async getOrCreateUser(clerkData: ClerkUserDataDto): Promise<UserResponseDto> {
     try {
       // Find user by Clerk ID if exists
       let user = await this.prisma.user.findFirst({
         where: {
-          clerk_id: clerkData.clerkId
-        },
+          clerkId: clerkData.clerkId
+        } as any,
       });
 
       // If user doesn't exist, create one
@@ -38,25 +33,25 @@ export class ClerkAuthService {
         });
 
         if (existingUserWithEmail) {
-          // If user with email exists but doesn't have a clerk_id, link them
+          // If user with email exists but doesn't have a clerkId, link them
           user = await this.prisma.user.update({
             where: { id: existingUserWithEmail.id },
             data: {
-              clerk_id: clerkData.clerkId,
+              clerkId: clerkData.clerkId,
               avatarUrl: clerkData.avatarUrl || existingUserWithEmail.avatarUrl,
-              last_login_at: new Date(),
-            },
+              lastLoginAt: new Date(),
+            } as any,
           });
         } else {
           // Create new user
           user = await this.prisma.user.create({
             data: {
-              clerk_id: clerkData.clerkId,
+              clerkId: clerkData.clerkId,
               email: clerkData.email,
-              full_name: clerkData.fullName,
+              fullName: clerkData.fullName,
               avatarUrl: clerkData.avatarUrl,
               role: 'trial',
-            },
+            } as any,
           });
         }
       } else {
@@ -65,10 +60,10 @@ export class ClerkAuthService {
           where: { id: user.id },
           data: {
             email: clerkData.email,
-            full_name: clerkData.fullName,
+            fullName: clerkData.fullName,
             avatarUrl: clerkData.avatarUrl || user.avatarUrl,
-            last_login_at: new Date(),
-          },
+            lastLoginAt: new Date(),
+          } as any,
         });
       }
 

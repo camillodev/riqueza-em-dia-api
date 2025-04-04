@@ -68,169 +68,176 @@ enum UserRole {
 model User {
   id                String             @id @default(uuid())
   email             String             @unique
-  full_name         String
+  fullName          String             @map("full_name")
   avatarUrl         String?
   role              UserRole           @default(trial)
-  created_at        DateTime           @default(now())
-  updated_at        DateTime           @updatedAt
-  last_login_at     DateTime?
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  lastLoginAt       DateTime?          @map("last_login_at")
   stripeId          String?            @unique
-  clerk_id          String?            @unique
+  clerkId           String?            @unique @map("clerk_id")
   accounts          Account[]
   categories        Category[]
   transactions      Transaction[]
   subscriptions     Subscription[]
   payments          Payment[]
-  support_tickets   SupportTicket[]
+  supportTickets    SupportTicket[]    @relation("UserToSupportTicket")
   preference        UserPreference?
-  monthly_summaries MonthlyFinancialSummary[]
-  budget_goals      BudgetGoal[]
+  monthlySummaries  MonthlyFinancialSummary[] @relation("UserToMonthlySummary")
+  budgetGoals       BudgetGoal[]       @relation("UserToBudgetGoal")
+
+  @@map("users")
 }
 
 model Account {
   id          String        @id @default(uuid())
-  user_id     String
+  userId      String
   name        String
   balance     Decimal       @db.Decimal(15, 2)
   color       String
-  is_archived Boolean       @default(false)
-  created_at  DateTime      @default(now())
-  updated_at  DateTime      @updatedAt
+  isArchived  Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
   
-  user        User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
 }
 
 model Category {
   id          String           @id @default(uuid())
-  user_id     String
+  userId      String
   name        String
   type        TransactionType
   icon        String
   color       String
-  created_at  DateTime         @default(now())
-  updated_at  DateTime         @updatedAt
-  is_default  Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  isDefault   Boolean          @default(false)
   
-  user        User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
-  budget_goals BudgetGoal[]
+  budgetGoals BudgetGoal[]
 }
 
 model Transaction {
   id          String          @id @default(uuid())
-  user_id     String
-  account_id  String
-  category_id String?
+  userId      String
+  accountId   String
+  categoryId  String?
   amount      Decimal         @db.Decimal(15, 2)
   description String
   date        DateTime
   type        TransactionType
-  created_at  DateTime        @default(now())
-  updated_at  DateTime        @updatedAt
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
   
-  user        User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  account     Account         @relation(fields: [account_id], references: [id], onDelete: Cascade)
-  category    Category?       @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account     Account         @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  category    Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 }
 
 model Subscription {
   id                   String               @id @default(uuid())
-  user_id              String
-  stripe_subscription_id String?            @unique
-  plan_type            SubscriptionPlanType
+  userId               String
+  stripeSubscriptionId String?            @unique
+  planType             SubscriptionPlanType
   status               SubscriptionStatus
-  current_period_start DateTime
-  current_period_end   DateTime
-  created_at           DateTime             @default(now())
-  updated_at           DateTime             @updatedAt
-  canceled_at          DateTime?
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  canceledAt           DateTime?
   
-  user                 User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   payments             Payment[]
 }
 
 model Payment {
   id               String        @id @default(uuid())
-  user_id          String
-  subscription_id  String
-  stripe_payment_id String
+  userId           String
+  subscriptionId   String
+  stripePaymentId  String
   amount           Decimal       @db.Decimal(15, 2)
   currency         String
   status           PaymentStatus
-  payment_method   String
-  invoice_url      String?
-  created_at       DateTime      @default(now())
+  paymentMethod    String
+  invoiceUrl       String?
+  createdAt        DateTime      @default(now())
   
-  user             User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  subscription     Subscription  @relation(fields: [subscription_id], references: [id], onDelete: Cascade)
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription     Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 }
 
 model SupportTicket {
   id          String              @id @default(uuid())
-  user_id     String
+  userId      String              @map("user_id")
   subject     String
   message     String              @db.Text
   status      SupportTicketStatus @default(open)
-  created_at  DateTime            @default(now())
-  updated_at  DateTime            @updatedAt
-  resolved_at DateTime?
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+  resolvedAt  DateTime?           @map("resolved_at")
   
-  user        User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user        User                @relation("UserToSupportTicket", fields: [userId], references: [id], onDelete: Cascade)
   responses   SupportResponse[]
+
+  @@map("support_tickets")
 }
 
 model SupportResponse {
   id             String        @id @default(uuid())
-  ticket_id      String
-  responder_type ResponderType
+  ticketId       String
+  responderType  ResponderType
   message        String        @db.Text
-  created_at     DateTime      @default(now())
+  createdAt      DateTime      @default(now())
   
-  ticket         SupportTicket @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  ticket         SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 }
 
 model UserPreference {
   id                  String           @id @default(uuid())
-  user_id             String           @unique
+  userId              String           @unique
   theme               ThemePreference  @default(system)
   language            String           @default("pt-BR")
   currency            String           @default("BRL")
-  notification_settings Json?
-  created_at          DateTime         @default(now())
-  updated_at          DateTime         @updatedAt
+  notificationSettings Json?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
   
-  user                User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model MonthlyFinancialSummary {
   id         String   @id @default(uuid())
-  user_id    String
-  month_year String
+  userId     String   @map("user_id")
+  monthYear  String   @map("month_year")
   income     Decimal  @db.Decimal(15, 2)
   expense    Decimal  @db.Decimal(15, 2)
   balance    Decimal  @db.Decimal(15, 2)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
   
-  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user       User     @relation("UserToMonthlySummary", fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([user_id, month_year])
+  @@unique([userId, monthYear])
+  @@map("monthly_financial_summaries")
 }
 
 model BudgetGoal {
   id          String       @id @default(uuid())
-  user_id     String
-  category_id String?
+  userId      String       @map("user_id")
+  categoryId  String?      @map("category_id")
   name        String
   amount      Decimal      @db.Decimal(15, 2)
   period      BudgetPeriod
-  start_date  DateTime
-  end_date    DateTime?
-  is_active   Boolean      @default(true)
-  created_at  DateTime     @default(now())
-  updated_at  DateTime     @updatedAt
+  startDate   DateTime     @map("start_date")
+  endDate     DateTime?    @map("end_date")
+  isActive    Boolean      @default(true) @map("is_active")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
   
-  user        User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  category    Category?    @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  user        User         @relation("UserToBudgetGoal", fields: [userId], references: [id], onDelete: Cascade)
+  category    Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@map("budget_goals")
 }

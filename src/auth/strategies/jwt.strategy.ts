@@ -18,13 +18,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    // When using Clerk, this would typically validate the token and then find the user
-    // in our database using the Clerk user ID
-
-    // For this implementation, we'll just validate that the user exists in our database
-    const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
-    });
+    // With Clerk, we validate using either the clerkId or the user id (sub)
+    const user = payload.clerkId
+      ? await this.prisma.user.findFirst({ where: { clerkId: payload.clerkId } as any })
+      : await this.prisma.user.findUnique({ where: { id: payload.sub } });
 
     if (!user) {
       throw new UnauthorizedException('User not found');
@@ -35,7 +32,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       id: user.id, 
       email: user.email,
       role: (user as any).role,
-      clerkId: (user as any).clerk_id
+      clerkId: (user as any).clerkId
     };
   }
 } 

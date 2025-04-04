@@ -4,6 +4,7 @@ import { ClerkAuthService } from '../services/clerk-auth.service';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import * as crypto from 'crypto';
 import { Request } from 'express';
+import { ClerkUserDataDto } from '../dto/clerk-auth.dto';
 
 @ApiTags('auth')
 @Controller('webhooks/clerk')
@@ -67,13 +68,15 @@ export class ClerkWebhookController {
           return { success: false, message: 'No primary email address found' };
         }
 
+        // Create user data DTO
+        const clerkUserData = new ClerkUserDataDto();
+        clerkUserData.clerkId = id;
+        clerkUserData.email = primaryEmail;
+        clerkUserData.fullName = `${first_name} ${last_name}`.trim();
+        clerkUserData.avatarUrl = image_url;
+
         // Get or create user in our database
-        await this.clerkAuthService.getOrCreateUser({
-          clerkId: id,
-          email: primaryEmail,
-          fullName: `${first_name} ${last_name}`.trim(),
-          avatarUrl: image_url,
-        });
+        await this.clerkAuthService.getOrCreateUser(clerkUserData);
 
         this.logger.log(`Successfully processed ${type} event for user ${id}`);
         return { success: true };

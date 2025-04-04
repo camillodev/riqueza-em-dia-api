@@ -21,10 +21,10 @@ export class UserResponseDto {
 
   constructor(user: any) {
     this.id = user.id;
-    this.fullName = user.full_name;
+    this.fullName = user.fullName;
     this.email = user.email;
     this.avatarUrl = user.avatarUrl;
     this.role = user.role;
-    this.lastLoginAt = user.last_login_at;
+    this.lastLoginAt = user.lastLoginAt;
   }
 } 

@@ -1,8 +1,6 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, UnauthorizedException, Headers } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthService } from '../services/auth.service';
-import { LoginDto } from '../dto/login.dto';
-import { RegisterDto } from '../dto/register.dto';
 import { AuthResponseDto } from '../dto/auth-response.dto';
 
 @ApiTags('auth')
@@ -10,27 +8,19 @@ import { AuthResponseDto } from '../dto/auth-response.dto';
 export class AuthController {
   constructor(private readonly authService: AuthService) { }
 
-  @Post('register')
-  @ApiOperation({ summary: 'Register a new user' })
-  @ApiResponse({
-    status: 201,
-    description: 'User registered successfully',
-    type: AuthResponseDto,
-  })
-  @ApiResponse({ status: 409, description: 'Email already in use' })
-  async register(@Body() registerDto: RegisterDto): Promise<AuthResponseDto> {
-    return this.authService.register(registerDto);
-  }
-
-  @Post('login')
-  @ApiOperation({ summary: 'Log in to the application' })
+  @Post('token')
+  @ApiOperation({ summary: 'Get token for authenticated Clerk user' })
   @ApiResponse({
     status: 200,
-    description: 'User logged in successfully',
+    description: 'Token generated successfully',
     type: AuthResponseDto,
   })
-  @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
-    return this.authService.login(loginDto);
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getToken(@Headers('clerk-user-id') clerkUserId: string): Promise<AuthResponseDto> {
+    if (!clerkUserId) {
+      throw new UnauthorizedException('Clerk user ID is required');
+    }
+
+    return this.authService.generateTokenFromClerkUser(clerkUserId);
   }
 } 
