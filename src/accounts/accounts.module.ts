@@ -1,10 +1,10 @@
 import { Module, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
-import { AccountsController } from './controllers/accounts.controller';
 import { AccountsService } from './services/accounts.service';
 import { AccountRepository } from './repositories/account.repository';
 import { PrismaModule } from '../prisma/prisma.module';
 import { CommonModule } from '../common/common.module';
 import { SecurityMiddleware } from '../common/middleware/security.middleware';
+import { AccountsController } from './controllers/accounts.controller';
 
 @Module({
   imports: [
@@ -23,6 +23,6 @@ export class AccountsModule {
     // Apply security middleware to all account routes
     consumer
       .apply(SecurityMiddleware)
-      .forRoutes({ path: 'api/accounts*', method: RequestMethod.ALL });
+      .forRoutes(AccountsController);
   }
 } 

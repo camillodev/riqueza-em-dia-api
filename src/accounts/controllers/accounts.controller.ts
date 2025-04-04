@@ -41,7 +41,7 @@ import {
 import { Account } from '@prisma/client';
 
 @ApiTags('accounts')
-@Controller('api/accounts')
+@Controller('accounts')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class AccountsController {
