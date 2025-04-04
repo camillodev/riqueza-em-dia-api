@@ -1,0 +1,18 @@
+import { Module } from '@nestjs/common';
+import { ReportsController } from './controllers/reports/reports.controller';
+import { ReportsService } from './services/reports/reports.service';
+import { PrismaModule } from '../prisma/prisma.module';
+import { CacheModule } from '@nestjs/cache-manager';
+
+@Module({
+  imports: [
+    PrismaModule,
+    CacheModule.register({
+      ttl: 60 * 5, // Cache for 5 minutes
+      max: 100,    // Maximum number of items in cache
+    }),
+  ],
+  controllers: [ReportsController],
+  providers: [ReportsService],
+})
+export class ReportsModule { }
