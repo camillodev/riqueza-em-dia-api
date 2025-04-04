@@ -24,10 +24,21 @@ export class UsersService {
     // Check if user exists
     await this.findById(id);
 
+    // Convert DTO fields to match database schema
+    const updateData: any = {};
+
+    if (updateUserDto.fullName !== undefined) {
+      updateData.full_name = updateUserDto.fullName;
+    }
+
+    if (updateUserDto.avatarUrl !== undefined) {
+      updateData.avatar_url = updateUserDto.avatarUrl;
+    }
+
     // Update user
     return this.prisma.user.update({
       where: { id },
-      data: updateUserDto,
+      data: updateData,
     });
   }
 } 

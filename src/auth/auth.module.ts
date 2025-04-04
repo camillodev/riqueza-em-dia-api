@@ -3,9 +3,9 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { AuthController } from './controllers/auth.controller';
-import { AuthService } from './services/auth.service';
 import { PrismaModule } from '../prisma/prisma.module';
+import { ClerkAuthService } from './services/clerk-auth.service';
+import { ClerkWebhookController } from './controllers/clerk-webhook.controller';
 
 @Module({
   imports: [
@@ -20,8 +20,8 @@ import { PrismaModule } from '../prisma/prisma.module';
       }),
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
-  exports: [JwtModule],
+  controllers: [ClerkWebhookController],
+  providers: [ClerkAuthService, JwtStrategy],
+  exports: [JwtModule, ClerkAuthService],
 })
 export class AuthModule { } 

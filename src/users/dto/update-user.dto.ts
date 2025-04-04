@@ -6,13 +6,7 @@ export class UpdateUserDto {
   @IsString()
   @IsOptional()
   @MaxLength(255)
-  name?: string;
-
-  @ApiProperty({ description: 'Email address of the user', required: false })
-  @IsEmail()
-  @IsOptional()
-  @MaxLength(255)
-  email?: string;
+  fullName?: string;
 
   @ApiProperty({ description: 'URL to the user avatar', required: false })
   @IsString()

@@ -13,93 +13,224 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum TransactionType {
+  income
+  expense
+}
+
+enum SubscriptionPlanType {
+  monthly
+  annual
+}
+
+enum SubscriptionStatus {
+  active
+  canceled
+  past_due
+  trialing
+}
+
+enum PaymentStatus {
+  succeeded
+  pending
+  failed
+}
+
+enum SupportTicketStatus {
+  open
+  in_progress
+  resolved
+}
+
+enum ResponderType {
+  user
+  admin
+}
+
+enum ThemePreference {
+  light
+  dark
+  system
+}
+
+enum BudgetPeriod {
+  monthly
+  yearly
+}
+
+enum UserRole {
+  admin
+  premium
+  standard
+  trial
+}
+
 model User {
   id                String             @id @default(uuid())
-  name              String
   email             String             @unique
-  password          String
-  avatarUrl         String?
-  createdAt         DateTime           @default(now())
-  stripeCustomerId  String?            @unique
-  
+  full_name         String
+  avatar_url        String?
+  role              UserRole           @default(trial)
+  created_at        DateTime           @default(now())
+  updated_at        DateTime           @updatedAt
+  last_login_at     DateTime?
+  stripeId String?           @unique
+  clerk_id          String?            @unique
   accounts          Account[]
   categories        Category[]
   transactions      Transaction[]
   subscriptions     Subscription[]
-  supportTickets    SupportTicket[]
+  payments          Payment[]
+  support_tickets   SupportTicket[]
+  preference        UserPreference?
+  monthly_summaries MonthlyFinancialSummary[]
+  budget_goals      BudgetGoal[]
 }
 
 model Account {
   id          String        @id @default(uuid())
-  userId      String
+  user_id     String
   name        String
-  balance     Float         @default(0)
+  balance     Decimal       @db.Decimal(15, 2)
   color       String
-  isArchived  Boolean       @default(false)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  is_archived Boolean       @default(false)
+  created_at  DateTime      @default(now())
+  updated_at  DateTime      @updatedAt
   
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
   transactions Transaction[]
 }
 
 model Category {
-  id          String        @id @default(uuid())
-  userId      String
+  id          String           @id @default(uuid())
+  user_id     String
   name        String
-  type        String
+  type        TransactionType
   icon        String
   color       String
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  created_at  DateTime         @default(now())
+  updated_at  DateTime         @updatedAt
+  is_default  Boolean          @default(false)
   
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
   transactions Transaction[]
+  budget_goals BudgetGoal[]
 }
 
 model Transaction {
-  id          String    @id @default(uuid())
-  userId      String
-  accountId   String
-  categoryId  String?
-  amount      Float
+  id          String          @id @default(uuid())
+  user_id     String
+  account_id  String
+  category_id String?
+  amount      Decimal         @db.Decimal(15, 2)
   description String
   date        DateTime
-  type        String
-  status      String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  type        TransactionType
+  created_at  DateTime        @default(now())
+  updated_at  DateTime        @updatedAt
   
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account     Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  user        User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  account     Account         @relation(fields: [account_id], references: [id], onDelete: Cascade)
+  category    Category?       @relation(fields: [category_id], references: [id], onDelete: SetNull)
 }
 
 model Subscription {
-  id                  String    @id @default(uuid())
-  userId              String
-  stripeSubscriptionId String?  @unique
-  plan                String
-  status              String
-  currentPeriodStart  DateTime
-  currentPeriodEnd    DateTime
-  cancelAtPeriodEnd   Boolean   @default(false)
-  priceId             String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id                   String               @id @default(uuid())
+  user_id              String
+  stripe_subscription_id String?            @unique
+  plan_type            SubscriptionPlanType
+  status               SubscriptionStatus
+  current_period_start DateTime
+  current_period_end   DateTime
+  created_at           DateTime             @default(now())
+  updated_at           DateTime             @updatedAt
+  canceled_at          DateTime?
   
-  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                 User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  payments             Payment[]
+}
+
+model Payment {
+  id               String        @id @default(uuid())
+  user_id          String
+  subscription_id  String
+  stripe_payment_id String
+  amount           Decimal       @db.Decimal(15, 2)
+  currency         String
+  status           PaymentStatus
+  payment_method   String
+  invoice_url      String?
+  created_at       DateTime      @default(now())
+  
+  user             User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  subscription     Subscription  @relation(fields: [subscription_id], references: [id], onDelete: Cascade)
 }
 
 model SupportTicket {
-  id          String    @id @default(uuid())
-  userId      String
+  id          String              @id @default(uuid())
+  user_id     String
   subject     String
-  message     String
-  priority    String
-  status      String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  message     String              @db.Text
+  status      SupportTicketStatus @default(open)
+  created_at  DateTime            @default(now())
+  updated_at  DateTime            @updatedAt
+  resolved_at DateTime?
   
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  responses   SupportResponse[]
+}
+
+model SupportResponse {
+  id             String        @id @default(uuid())
+  ticket_id      String
+  responder_type ResponderType
+  message        String        @db.Text
+  created_at     DateTime      @default(now())
+  
+  ticket         SupportTicket @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+}
+
+model UserPreference {
+  id                  String           @id @default(uuid())
+  user_id             String           @unique
+  theme               ThemePreference  @default(system)
+  language            String           @default("pt-BR")
+  currency            String           @default("BRL")
+  notification_settings Json?
+  created_at          DateTime         @default(now())
+  updated_at          DateTime         @updatedAt
+  
+  user                User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model MonthlyFinancialSummary {
+  id         String   @id @default(uuid())
+  user_id    String
+  month_year String
+  income     Decimal  @db.Decimal(15, 2)
+  expense    Decimal  @db.Decimal(15, 2)
+  balance    Decimal  @db.Decimal(15, 2)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, month_year])
+}
+
+model BudgetGoal {
+  id          String       @id @default(uuid())
+  user_id     String
+  category_id String?
+  name        String
+  amount      Decimal      @db.Decimal(15, 2)
+  period      BudgetPeriod
+  start_date  DateTime
+  end_date    DateTime?
+  is_active   Boolean      @default(true)
+  created_at  DateTime     @default(now())
+  updated_at  DateTime     @updatedAt
+  
+  user        User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  category    Category?    @relation(fields: [category_id], references: [id], onDelete: SetNull)
 }

@@ -6,7 +6,7 @@ export class UserResponseDto {
   id: string;
 
   @ApiProperty({ description: 'Full name of the user' })
-  name: string;
+  fullName: string;
 
   @ApiProperty({ description: 'Email address of the user' })
   email: string;
@@ -14,10 +14,14 @@ export class UserResponseDto {
   @ApiProperty({ description: 'URL to the user avatar', required: false })
   avatarUrl?: string;
 
-  constructor(user: User) {
+  @ApiProperty({ description: 'User role' })
+  role: string;
+
+  constructor(user: any) {
     this.id = user.id;
-    this.name = user.name;
+    this.fullName = user.full_name || user.name;
     this.email = user.email;
-    this.avatarUrl = user.avatarUrl || undefined;
+    this.avatarUrl = user.avatar_url || user.avatarUrl;
+    this.role = user.role;
   }
 } 
