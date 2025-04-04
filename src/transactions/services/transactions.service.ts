@@ -13,7 +13,7 @@ import {
   TransactionFilter,
 } from '../schemas/transaction.schema';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Transaction, Prisma } from '@prisma/client';
+import { Transaction, Prisma, Category, Account } from '@prisma/client';
 
 @Injectable()
 export class TransactionsService {
@@ -64,6 +64,8 @@ export class TransactionsService {
 
   async create(userId: string, createTransactionDto: CreateTransactionDto): Promise<Transaction> {
     try {
+      // All amounts are already in cents as integers from validation
+
       // Verify that the account exists and belongs to the user
       const account = await this.prisma.account.findFirst({
         where: {
@@ -93,19 +95,20 @@ export class TransactionsService {
       return await this.prisma.$transaction(async (prisma) => {
         // Create the transaction
         const transaction = await this.transactionRepository.create(userId, {
+          // Amount is already in cents
           amount: createTransactionDto.amount,
           description: createTransactionDto.description,
           date: new Date(createTransactionDto.date),
           type: createTransactionDto.type,
-          status: createTransactionDto.status,
+          status: createTransactionDto.status || 'pending',
           accountId: createTransactionDto.account,
           categoryId: createTransactionDto.category || null
         });
 
-        // Update account balance
+        // Update account balance with cents amount
         const balanceChange = createTransactionDto.type === 'income'
-          ? createTransactionDto.amount
-          : -createTransactionDto.amount;
+          ? createTransactionDto.amount  // Already in cents
+          : -createTransactionDto.amount; // Already in cents
 
         await prisma.account.update({
           where: { id: createTransactionDto.account },
@@ -165,7 +168,9 @@ export class TransactionsService {
 
       // Prepare update data
       const updateData: Prisma.TransactionUpdateInput = {
-        ...(updateTransactionDto.amount !== undefined && { amount: updateTransactionDto.amount }),
+        ...(updateTransactionDto.amount !== undefined && { 
+          amount: updateTransactionDto.amount // Already in cents from validation
+        }),
         ...(updateTransactionDto.description && { description: updateTransactionDto.description }),
         ...(updateTransactionDto.date && { date: new Date(updateTransactionDto.date) }),
         ...(updateTransactionDto.type && { type: updateTransactionDto.type }),
@@ -182,15 +187,19 @@ export class TransactionsService {
 
         // If amount or type changes, we need to adjust the old amount
         if (updateTransactionDto.amount !== undefined || updateTransactionDto.type !== undefined) {
+          // Convert stored amount to integer cents if needed
           const oldAmount = Number(existingTransaction.amount);
           const oldType = existingTransaction.type;
-          const newAmount = updateTransactionDto.amount !== undefined ? Number(updateTransactionDto.amount) : oldAmount;
+          // If amount is provided, it's already in cents from validation
+          const newAmount = updateTransactionDto.amount !== undefined
+            ? updateTransactionDto.amount 
+            : oldAmount;
           const newType = updateTransactionDto.type ?? oldType;
 
-          // Reverse the old transaction effect
+          // Reverse the old transaction effect (in cents)
           oldAccountAdjustment = oldType === 'income' ? -oldAmount : oldAmount;
 
-          // Apply the new transaction effect
+          // Apply the new transaction effect (in cents)
           newAccountAdjustment = newType === 'income' ? newAmount : -newAmount;
         }
 
@@ -241,6 +250,7 @@ export class TransactionsService {
         const deletedTransaction = await this.transactionRepository.delete(id, userId);
 
         // Update the account balance by reversing the transaction effect
+        // Convert to integer cents if needed
         const balanceAdjustment = transaction.type === 'income'
           ? -Number(transaction.amount)
           : Number(transaction.amount);
@@ -268,9 +278,13 @@ export class TransactionsService {
   }
 
   // Helper method to format transaction for response
-  private formatTransaction(transaction: any) {
+  private formatTransaction(transaction: Transaction & {
+    category?: Category | null,
+    account?: Account | null 
+  }) {
     return {
       id: transaction.id,
+      // Return amount in cents, client can format for display
       amount: Number(transaction.amount),
       description: transaction.description,
       date: transaction.date.toISOString().split('T')[0], // Format as YYYY-MM-DD

@@ -23,6 +23,8 @@ import {
   ApiResponse,
   ApiTags,
   ApiQuery,
+  ApiProperty,
+  ApiBody,
 } from '@nestjs/swagger';
 import { TransactionsService } from '../services/transactions.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -37,6 +39,69 @@ import {
   TransactionFilterDto,
 } from '../schemas/transaction.schema';
 import { Transaction } from '@prisma/client';
+
+// Example DTO for documentation
+class TransactionResponseDto {
+  @ApiProperty({ example: 'uuid', description: 'Transaction ID' })
+  id: string;
+
+  @ApiProperty({ example: 10050, description: 'Amount in cents (integer)' })
+  amount: number;
+
+  @ApiProperty({ example: 'Salary payment', description: 'Transaction description' })
+  description: string;
+
+  @ApiProperty({ example: '2023-05-15', description: 'Transaction date (YYYY-MM-DD)' })
+  date: string;
+
+  @ApiProperty({ example: 'Salary', description: 'Category name' })
+  category: string;
+
+  @ApiProperty({ example: 'uuid', description: 'Category ID' })
+  categoryId: string;
+
+  @ApiProperty({ example: 'income', enum: ['income', 'expense'], description: 'Transaction type' })
+  type: string;
+
+  @ApiProperty({ example: 'Nubank', description: 'Account name' })
+  account: string;
+
+  @ApiProperty({ example: 'uuid', description: 'Account ID' })
+  accountId: string;
+
+  @ApiProperty({ example: 'completed', enum: ['pending', 'completed', 'canceled'], description: 'Transaction status' })
+  status: string;
+}
+
+// Example request body for documentation
+class CreateTransactionRequestDto {
+  @ApiProperty({ example: 10050, description: 'Amount in cents (integer)' })
+  amount: number;
+
+  @ApiProperty({ example: 'Salary payment', description: 'Transaction description' })
+  description: string;
+
+  @ApiProperty({ example: '2023-05-15', description: 'Transaction date (YYYY-MM-DD)' })
+  date: string;
+
+  @ApiProperty({ example: 'uuid', description: 'Category ID', required: false })
+  category?: string;
+
+  @ApiProperty({ example: 'income', enum: ['income', 'expense'], description: 'Transaction type' })
+  type: string;
+
+  @ApiProperty({ example: 'uuid', description: 'Account ID' })
+  account: string;
+
+  @ApiProperty({
+    example: 'completed',
+    enum: ['pending', 'completed', 'canceled'],
+    description: 'Transaction status',
+    default: 'pending',
+    required: false
+  })
+  status?: string;
+}
 
 @ApiTags('transactions')
 @Controller('transactions')
@@ -61,7 +126,8 @@ export class TransactionsController {
   @ApiQuery({ name: 'order', required: false, enum: ['asc', 'desc'], description: 'Sort direction' })
   @ApiResponse({
     status: 200,
-    description: 'Returns all transactions with pagination',
+    description: 'Returns all transactions with pagination. Note: Amounts are in cents (integer values)',
+    type: [TransactionResponseDto],
   })
   async findAll(
     @Request() req,
@@ -83,7 +149,8 @@ export class TransactionsController {
   @ApiParam({ name: 'id', description: 'Transaction ID' })
   @ApiResponse({
     status: 200,
-    description: 'Returns a specific transaction',
+    description: 'Returns a specific transaction. Note: Amount is in cents (integer value)',
+    type: TransactionResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Transaction not found' })
   async findOne(
@@ -97,9 +164,11 @@ export class TransactionsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new transaction' })
+  @ApiBody({ type: CreateTransactionRequestDto, description: 'Transaction data. Note: Amount must be in cents (integer)' })
   @ApiResponse({
     status: 201,
-    description: 'Transaction created successfully',
+    description: 'Transaction created successfully. Response amount is in cents (integer)',
+    type: TransactionResponseDto,
   })
   async create(
     @Request() req,
@@ -112,9 +181,11 @@ export class TransactionsController {
   @Put(':id')
   @ApiOperation({ summary: 'Update an existing transaction' })
   @ApiParam({ name: 'id', description: 'Transaction ID' })
+  @ApiBody({ type: CreateTransactionRequestDto, description: 'Transaction data to update. Note: Amount must be in cents (integer)' })
   @ApiResponse({
     status: 200,
-    description: 'Transaction updated successfully',
+    description: 'Transaction updated successfully. Response amount is in cents (integer)',
+    type: TransactionResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Transaction not found' })
   async update(
@@ -132,6 +203,7 @@ export class TransactionsController {
   @ApiResponse({
     status: 200,
     description: 'Transaction deleted successfully',
+    type: TransactionResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Transaction not found' })
   async remove(

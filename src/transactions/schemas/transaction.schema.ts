@@ -3,7 +3,7 @@ import { createZodDto } from 'nestjs-zod';
 
 // Base schema for transactions
 const transactionBaseSchema = z.object({
-  amount: z.number().positive('Amount must be a positive number'),
+  amount: z.number().int('Amount must be provided in cents as an integer').positive('Amount must be a positive number'),
   description: z.string().min(3, 'Description must be at least 3 characters').max(255, 'Description too long'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
   category: z.string().uuid('Category must be a valid UUID').optional(),
@@ -13,7 +13,7 @@ const transactionBaseSchema = z.object({
   account: z.string().uuid('Account must be a valid UUID'),
   status: z.enum(['pending', 'completed', 'canceled'], {
     errorMap: () => ({ message: 'Status must be pending, completed, or canceled' })
-  }),
+  }).default('pending'),
 });
 
 // Schema for creating a new transaction
