@@ -15,7 +15,5 @@ export class CustomThrottlerGuard extends ThrottlerGuard {
     return tracker;
   }
 
-  protected override get errorMessage(): string {
-    return 'Too many requests, please try again later.';
-  }
+  protected override errorMessage: string = 'Too many requests, please try again later.';
 } 
