@@ -97,6 +97,7 @@ export class TransactionsService {
           description: createTransactionDto.description,
           date: new Date(createTransactionDto.date),
           type: createTransactionDto.type,
+          status: createTransactionDto.status,
           accountId: createTransactionDto.account,
           categoryId: createTransactionDto.category || null
         });
@@ -168,6 +169,7 @@ export class TransactionsService {
         ...(updateTransactionDto.description && { description: updateTransactionDto.description }),
         ...(updateTransactionDto.date && { date: new Date(updateTransactionDto.date) }),
         ...(updateTransactionDto.type && { type: updateTransactionDto.type }),
+        ...(updateTransactionDto.status && { status: updateTransactionDto.status }),
         ...(updateTransactionDto.account && { accountId: updateTransactionDto.account }),
         ...(updateTransactionDto.category !== undefined && { categoryId: updateTransactionDto.category }),
       };
@@ -277,6 +279,7 @@ export class TransactionsService {
       type: transaction.type,
       account: transaction.account?.name || 'Unknown Account',
       accountId: transaction.accountId,
+      status: transaction.status,
     };
   }
 } 
