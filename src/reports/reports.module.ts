@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { ReportsController } from './controllers/reports/reports.controller';
-import { ReportsService } from './services/reports/reports.service';
+import { ReportsController } from './reports.controller';
+import { ReportsService } from './reports.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { CacheModule } from '@nestjs/cache-manager';
 

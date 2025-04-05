@@ -15,9 +15,9 @@ import {
   ApiTags
 } from '@nestjs/swagger';
 import { CacheInterceptor } from '@nestjs/cache-manager';
-import { JwtAuthGuard } from '../../../auth/jwt-auth.guard';
-import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe';
-import { ReportsService } from '../../services/reports/reports.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
+import { ReportsService } from './reports.service';
 import {
   summaryReportSchema,
   incomeVsExpenseSchema,
@@ -27,12 +27,12 @@ import {
   IncomeVsExpenseDto,
   ByCategoryDto,
   MonthlyDataDto
-} from '../../schemas/report.schema';
+} from './report.schema';
 import {
   SummaryReportResponseDto,
   ChartItemDto,
   MonthlyDataItemDto
-} from '../../dtos/report-response.dto';
+} from './dtos/report-response.dto';
 
 @ApiTags('reports')
 @Controller('reports')
