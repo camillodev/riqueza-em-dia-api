@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { UsersService } from '../services/users.service';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { UserResponseDto } from '../dto/user-response.dto';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 
 @ApiTags('users')
 @Controller('users')

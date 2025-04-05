@@ -25,7 +25,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { AccountsService } from '../services/accounts.service';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { PaginationQuerySchema, PaginationQueryParams } from '../../common/dtos/pagination.dto';
 import {

@@ -15,7 +15,7 @@ import {
   ApiTags
 } from '@nestjs/swagger';
 import { CacheInterceptor } from '@nestjs/cache-manager';
-import { JwtAuthGuard } from '../../../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../../auth/jwt-auth.guard';
 import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe';
 import { ReportsService } from '../../services/reports/reports.service';
 import {

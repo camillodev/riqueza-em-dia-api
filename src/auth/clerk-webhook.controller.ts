@@ -1,10 +1,10 @@
 import { Controller, Post, Headers, Body, UnauthorizedException, Logger, RawBodyRequest, Req } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ClerkAuthService } from '../services/clerk-auth.service';
+import { ClerkAuthService } from './services/clerk-auth.service';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import * as crypto from 'crypto';
 import { Request } from 'express';
-import { ClerkUserDataDto } from '../dto/clerk-auth.dto';
+import { ClerkUserDataDto } from './dto/clerk-auth.dto';
 
 @ApiTags('auth')
 @Controller('webhooks/clerk')

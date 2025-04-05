@@ -5,7 +5,7 @@ import { CreateAccountDto } from '../dto/create-account.dto';
 import { UpdateAccountDto } from '../dto/update-account.dto';
 import { ArchiveAccountDto } from '../dto/archive-account.dto';
 import { AccountResponseDto } from '../dto/account-response.dto';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 
 // Mock auth guard
 class MockJwtAuthGuard {
