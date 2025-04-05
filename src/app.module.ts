@@ -8,6 +8,7 @@ import { AccountsModule } from './accounts/accounts.module';
 import { CommonModule } from './common/common.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { ReportsModule } from './reports/reports.module';
+import { CategoriesModule } from './categories/categories.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ReportsModule } from './reports/reports.module';
     AccountsModule,
     TransactionsModule,
     ReportsModule,
+    CategoriesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
