@@ -21,22 +21,18 @@ export class ClerkAuthService {
    */
   async getOrCreateUser(clerkData: ClerkUserDataDto): Promise<UserResponseDto> {
     try {
-      // Find user by Clerk ID if exists
       let user = await this.prisma.user.findFirst({
         where: {
           clerkId: clerkData.clerkId
         } as any,
       });
 
-      // If user doesn't exist, create one
       if (!user) {
-        // Check if email already exists
         const existingUserWithEmail = await this.prisma.user.findUnique({
           where: { email: clerkData.email },
         });
 
         if (existingUserWithEmail) {
-          // If user with email exists but doesn't have a clerkId, link them
           user = await this.prisma.user.update({
             where: { id: existingUserWithEmail.id },
             data: {
@@ -46,7 +42,6 @@ export class ClerkAuthService {
             } as any,
           });
         } else {
-          // Create new user
           user = await this.prisma.user.create({
             data: {
               clerkId: clerkData.clerkId,
@@ -58,7 +53,6 @@ export class ClerkAuthService {
           });
         }
       } else {
-        // Update user info
         user = await this.prisma.user.update({
           where: { id: user.id },
           data: {
@@ -207,6 +201,44 @@ export class ClerkAuthService {
 
       // Generic error for any other issues
       throw new UnauthorizedException('Authentication failed');
+    }
+  }
+
+  /**
+   * Handle a user being deleted in Clerk
+   * @param clerkId The Clerk ID of the deleted user
+   */
+  async handleUserDeleted(clerkId: string): Promise<void> {
+    try {
+      this.logger.debug(`Handling deleted user with clerkId: ${clerkId}`);
+
+      // Find user by Clerk ID
+      const user = await this.prisma.user.findFirst({
+        where: { clerkId } as any,
+      });
+
+      if (!user) {
+        this.logger.warn(`User with clerkId ${clerkId} not found during deletion`);
+        return;
+      }
+
+      // Here we could either:
+      // 1. Mark the user as deleted (soft delete)
+      // 2. Actually delete the user data (hard delete)
+
+      // Soft delete approach (recommended to prevent data loss)
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          isDeleted: true,
+          deletedAt: new Date(),
+        } as any,
+      });
+
+      this.logger.log(`User with id ${user.id} marked as deleted`);
+    } catch (error) {
+      this.logger.error(`Error in handleUserDeleted: ${error.message}`, error.stack);
+      throw error;
     }
   }
 } 

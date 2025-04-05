@@ -28,37 +28,12 @@ export class ClerkWebhookController {
     @Req() request: RawBodyRequest<Request>,
   ) {
     // Verify webhook signature
-    const webhookSecret = this.configService.get<string>('CLERK_WEBHOOK_SECRET');
-
-    // Only verify signature in production
-    if (process.env.NODE_ENV === 'production') {
-      if (!webhookSecret) {
-        this.logger.error('CLERK_WEBHOOK_SECRET is not defined');
-        throw new UnauthorizedException('Webhook secret not configured');
-      }
-
-      if (!svixId || !svixTimestamp || !svixSignature) {
-        this.logger.warn('Missing Svix headers');
-        throw new UnauthorizedException('Missing verification headers');
-      }
-
-      const rawBody = request.rawBody;
-      if (!rawBody) {
-        this.logger.warn('Request rawBody is missing');
-        throw new UnauthorizedException('Invalid request format');
-      }
-
-      if (!this.verifyWebhookSignature(svixId, svixTimestamp, svixSignature, rawBody.toString(), webhookSecret)) {
-        this.logger.warn('Invalid webhook signature');
-        throw new UnauthorizedException('Invalid webhook signature');
-      }
-    }
+    await this.verifyWebhookRequest(svixId, svixTimestamp, svixSignature, request);
 
     try {
       const { type, data } = payload;
       this.logger.log(`Processing Clerk webhook event: ${type}`);
 
-      // Handle user.created or user.updated events
       if (type === 'user.created' || type === 'user.updated') {
         const { id, email_addresses, first_name, last_name, image_url } = data;
 
@@ -68,17 +43,25 @@ export class ClerkWebhookController {
           return { success: false, message: 'No primary email address found' };
         }
 
-        // Create user data DTO
         const clerkUserData = new ClerkUserDataDto();
         clerkUserData.clerkId = id;
         clerkUserData.email = primaryEmail;
         clerkUserData.fullName = `${first_name} ${last_name}`.trim();
         clerkUserData.avatarUrl = image_url;
 
-        // Get or create user in our database
         await this.clerkAuthService.getOrCreateUser(clerkUserData);
 
         this.logger.log(`Successfully processed ${type} event for user ${id}`);
+        return { success: true };
+      }
+
+      if (type === 'user.deleted') {
+        const { id } = data;
+
+        // Find and mark user as deleted in our database
+        await this.clerkAuthService.handleUserDeleted(id);
+
+        this.logger.log(`Successfully processed user.deleted event for user ${id}`);
         return { success: true };
       }
 
@@ -86,6 +69,44 @@ export class ClerkWebhookController {
     } catch (error) {
       this.logger.error(`Error processing webhook: ${error.message}`, error.stack);
       return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Verify that the webhook request is legitimate and came from Clerk
+   */
+  private async verifyWebhookRequest(
+    svixId: string,
+    svixTimestamp: string,
+    svixSignature: string,
+    request: RawBodyRequest<Request>
+  ): Promise<void> {
+    // Only verify signature in production
+    if (process.env.NODE_ENV !== 'production') {
+      return;
+    }
+
+    const webhookSecret = this.configService.get<string>('CLERK_WEBHOOK_SECRET');
+
+    if (!webhookSecret) {
+      this.logger.error('CLERK_WEBHOOK_SECRET is not defined');
+      throw new UnauthorizedException('Webhook secret not configured');
+    }
+
+    if (!svixId || !svixTimestamp || !svixSignature) {
+      this.logger.warn('Missing Svix headers');
+      throw new UnauthorizedException('Missing verification headers');
+    }
+
+    const rawBody = request.rawBody;
+    if (!rawBody) {
+      this.logger.warn('Request rawBody is missing');
+      throw new UnauthorizedException('Invalid request format');
+    }
+
+    if (!this.verifyWebhookSignature(svixId, svixTimestamp, svixSignature, rawBody.toString(), webhookSecret)) {
+      this.logger.warn('Invalid webhook signature');
+      throw new UnauthorizedException('Invalid webhook signature');
     }
   }
 
