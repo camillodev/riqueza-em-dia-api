@@ -15,16 +15,18 @@ async function bootstrap() {
   const nodeEnv = process.env.NODE_ENV || 'development';
   const isProduction = nodeEnv === 'production';
 
-  // Configure log levels based on environment
+  // Configure log levels based on environment - always enable debug logs for development
   const logLevels: LogLevel[] = isProduction
     ? ['error', 'warn', 'log']
     : ['error', 'warn', 'log', 'debug', 'verbose'];
 
-  logger.log(`Starting application in ${nodeEnv} mode`);
+  logger.log(`Starting application in ${nodeEnv} mode with log levels: ${logLevels.join(', ')}`);
 
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
     logger: logLevels,
+    // Force debug logs to be displayed
+    abortOnError: false,
   });
 
   // Get configuration service

@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@anatine/zod-openapi": "^2.2.8",
+    "@clerk/backend": "^1.26.0",
     "@nestjs/cache-manager": "^3.0.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
@@ -40,6 +41,7 @@
     "class-validator": "^0.14.1",
     "cookie-parser": "^1.4.7",
     "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
     "nestjs-zod": "^4.3.1",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
