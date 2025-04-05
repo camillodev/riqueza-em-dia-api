@@ -145,51 +145,66 @@ export class ClerkAuthService {
       }
 
       // Step 5: Find user in our database
-      let user = await this.prisma.user.findFirst({
-        where: { clerkId } as any,
-      });
-
-      // Step 6: If user doesn't exist in our database, fetch details from Clerk
-      if (!user) {
-        this.logger.debug(`User not found in database for clerkId: ${clerkId}`);
-
-        // Fetch user details from Clerk API
-        const userResponse = await fetch(`https://api.clerk.com/v1/users/${clerkId}`, {
-          headers: {
-            'Authorization': `Bearer ${clerkSecretKey}`,
-            'Content-Type': 'application/json',
-          },
+      try {
+        let user = await this.prisma.user.findFirst({
+          where: { clerkId } as any,
         });
 
-        if (!userResponse.ok) {
-          this.logger.error(`Failed to fetch user details from Clerk: ${userResponse.status}`);
-          throw new UnauthorizedException('Failed to fetch user details');
+        // Step 6: If user doesn't exist in our database, fetch details from Clerk
+        if (!user) {
+          this.logger.debug(`User not found in database for clerkId: ${clerkId}`);
+
+          // Fetch user details from Clerk API
+          const userResponse = await fetch(`https://api.clerk.com/v1/users/${clerkId}`, {
+            headers: {
+              'Authorization': `Bearer ${clerkSecretKey}`,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (!userResponse.ok) {
+            this.logger.error(`Failed to fetch user details from Clerk: ${userResponse.status}`);
+            throw new UnauthorizedException('Failed to fetch user details');
+          }
+
+          const userData = await userResponse.json();
+          this.logger.debug(`Clerk user data: ${JSON.stringify(userData)}`);
+
+          // Extract email and user details
+          const primaryEmailObj = userData.email_addresses?.find(email => email.id === userData.primary_email_address_id);
+          const primaryEmail = primaryEmailObj?.email_address || `${clerkId}@placeholder.com`;
+
+          const firstName = userData.first_name || '';
+          const lastName = userData.last_name || '';
+          const fullName = `${firstName} ${lastName}`.trim() || 'User';
+          const avatarUrl = userData.image_url || null;
+
+          // Create user data DTO
+          const clerkUserData = new ClerkUserDataDto();
+          clerkUserData.clerkId = clerkId;
+          clerkUserData.email = primaryEmail;
+          clerkUserData.fullName = fullName;
+          clerkUserData.avatarUrl = avatarUrl;
+
+          // Create the user in our database
+          return await this.getOrCreateUser(clerkUserData);
         }
 
-        const userData = await userResponse.json();
+        this.logger.debug(`User found in database: ${user.id}`);
+        return new UserResponseDto(user);
+      } catch (dbError) {
+        this.logger.error(`Database error in verifyTokenAndGetUser: ${dbError.message}`, dbError.stack);
 
-        // Extract email and user details
-        const primaryEmailObj = userData.email_addresses?.find(email => email.id === userData.primary_email_address_id);
-        const primaryEmail = primaryEmailObj?.email_address || `${clerkId}@placeholder.com`;
+        if (dbError instanceof Prisma.PrismaClientKnownRequestError) {
+          this.logger.error(`Prisma error code: ${dbError.code}`);
 
-        const firstName = userData.first_name || '';
-        const lastName = userData.last_name || '';
-        const fullName = `${firstName} ${lastName}`.trim() || 'User';
-        const avatarUrl = userData.image_url || null;
+          if (dbError.code === 'P2003') {
+            this.logger.error(`Foreign key constraint failure. Field: ${dbError.meta?.field_name}`);
+          }
+        }
 
-        // Create user data DTO
-        const clerkUserData = new ClerkUserDataDto();
-        clerkUserData.clerkId = clerkId;
-        clerkUserData.email = primaryEmail;
-        clerkUserData.fullName = fullName;
-        clerkUserData.avatarUrl = avatarUrl;
-
-        // Create the user in our database
-        return await this.getOrCreateUser(clerkUserData);
+        throw new UnauthorizedException('Failed to authenticate user');
       }
-
-      this.logger.debug(`User found in database: ${user.id}`);
-      return new UserResponseDto(user);
     } catch (error) {
       this.logger.error(`Error in verifyTokenAndGetUser: ${error.message}`, error.stack);
 
