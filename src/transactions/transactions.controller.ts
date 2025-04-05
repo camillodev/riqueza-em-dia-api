@@ -44,6 +44,9 @@ import { Transaction } from '@prisma/client';
 import { TransactionResponseDto } from './dto/transaction-response.dto';
 import { CreateTransactionRequestDto } from './dto/create-transaction.dto';
 
+/**
+ * Controller for managing financial transactions
+ */
 @ApiTags('transactions')
 @Controller('transactions')
 @UseGuards(JwtAuthGuard)
@@ -55,42 +58,51 @@ export class TransactionsController {
 
   @Get()
   @UseInterceptors(CacheInterceptor)
-  @ApiOperation({ summary: 'Get all transactions with pagination and filtering' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (starts from 1)' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Page size (max 100)' })
-  @ApiQuery({
-    name: 'month',
-    required: false,
-    type: String,
-    description: 'Filter by month in YYYY-MM format (e.g., 2023-05) or month number (e.g., 04) - when using month number, year parameter is required'
-  })
-  @ApiQuery({
-    name: 'year',
-    required: false,
-    type: String,
-    description: 'Filter by year (YYYY) - required when month is provided as a number (01-12)'
-  })
+  @ApiOperation({ summary: 'List transactions' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (starts from 1)', example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of items per page (max 100)', example: 20 })
+  @ApiQuery({ name: 'year', required: false, type: String, description: 'Filter by year (YYYY format)', example: '2025' })
+  @ApiQuery({ name: 'month', required: false, type: String, description: 'Filter by month (MM format, 01-12). Requires year parameter.', example: '04' })
   @ApiQuery({ name: 'type', required: false, enum: ['income', 'expense'], description: 'Filter by transaction type' })
-  @ApiQuery({ name: 'category', required: false, type: String, description: 'Filter by category ID' })
-  @ApiQuery({ name: 'account', required: false, type: String, description: 'Filter by account ID' })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search in description' })
-  @ApiQuery({ name: 'sort', required: false, enum: ['date', 'amount', 'description'], description: 'Sort field' })
-  @ApiQuery({ name: 'order', required: false, enum: ['asc', 'desc'], description: 'Sort direction' })
+  @ApiQuery({ name: 'category', required: false, type: String, description: 'Filter by category ID (UUID)' })
+  @ApiQuery({ name: 'account', required: false, type: String, description: 'Filter by account ID (UUID)' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search in transaction description' })
+  @ApiQuery({ name: 'sort', required: false, enum: ['date', 'amount', 'description'], description: 'Field to sort by', example: 'date' })
+  @ApiQuery({ name: 'order', required: false, enum: ['asc', 'desc'], description: 'Sort direction', example: 'desc' })
   @ApiResponse({
     status: 200,
-    description: 'Returns all transactions with pagination. Note: Amounts are in cents (integer values)',
-    type: [TransactionResponseDto],
+    description: 'Returns paginated list of transactions with metadata',
+    schema: {
+      type: 'object',
+      properties: {
+        transactions: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/TransactionResponseDto' }
+        },
+        pagination: {
+          type: 'object',
+          properties: {
+            total: { type: 'number', example: 45 },
+            pages: { type: 'number', example: 3 },
+            currentPage: { type: 'number', example: 1 },
+            limit: { type: 'number', example: 20 }
+          }
+        }
+      }
+    }
   })
   @ApiResponse({
     status: 400,
-    description: 'Bad Request - when required parameters are missing, such as year when month is provided as a number'
+    description: 'Bad Request - Invalid parameters'
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Authentication is required'
   })
   async findAll(
     @Request() req,
-    @Query(new ZodValidationPipe(PaginationQuerySchema))
-    paginationParams: PaginationQueryParams,
-    @Query(new ZodValidationPipe(transactionFilterSchema))
-    filterParams: TransactionFilterDto,
+    @Query(new ZodValidationPipe(PaginationQuerySchema)) paginationParams: PaginationQueryParams,
+    @Query(new ZodValidationPipe(transactionFilterSchema)) filterParams: TransactionFilterDto,
   ) {
     try {
       this.logger.log(`GET transactions for user ${req.user.id} with filters: ${JSON.stringify(filterParams)}`);
@@ -107,14 +119,21 @@ export class TransactionsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a specific transaction' })
-  @ApiParam({ name: 'id', description: 'Transaction ID' })
+  @ApiOperation({ summary: 'Get transaction by ID' })
+  @ApiParam({ name: 'id', type: String, format: 'uuid', description: 'Transaction ID (UUID)', example: '123e4567-e89b-12d3-a456-426614174000' })
   @ApiResponse({
     status: 200,
-    description: 'Returns a specific transaction. Note: Amount is in cents (integer value)',
+    description: 'Returns the requested transaction',
     type: TransactionResponseDto,
   })
-  @ApiResponse({ status: 404, description: 'Transaction not found' })
+  @ApiResponse({
+    status: 404,
+    description: 'Transaction not found'
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Authentication is required'
+  })
   async findOne(
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,
@@ -136,12 +155,20 @@ export class TransactionsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a new transaction' })
-  @ApiBody({ type: CreateTransactionRequestDto, description: 'Transaction data. Note: Amount must be in cents (integer)' })
+  @ApiOperation({ summary: 'Create transaction' })
+  @ApiBody({ type: CreateTransactionRequestDto, description: 'Transaction data to create. Amount must be in cents (integer)' })
   @ApiResponse({
     status: 201,
-    description: 'Transaction created successfully. Response amount is in cents (integer)',
+    description: 'Transaction created successfully',
     type: TransactionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Invalid transaction data'
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Authentication is required'
   })
   async create(
     @Request() req,
@@ -160,15 +187,26 @@ export class TransactionsController {
   }
 
   @Put(':id')
-  @ApiOperation({ summary: 'Update an existing transaction' })
-  @ApiParam({ name: 'id', description: 'Transaction ID' })
-  @ApiBody({ type: CreateTransactionRequestDto, description: 'Transaction data to update. Note: Amount must be in cents (integer)' })
+  @ApiOperation({ summary: 'Update transaction' })
+  @ApiParam({ name: 'id', type: String, format: 'uuid', description: 'Transaction ID (UUID)', example: '123e4567-e89b-12d3-a456-426614174000' })
+  @ApiBody({ type: CreateTransactionRequestDto, description: 'Transaction data to update. Only specified fields will be updated.' })
   @ApiResponse({
     status: 200,
-    description: 'Transaction updated successfully. Response amount is in cents (integer)',
+    description: 'Transaction updated successfully',
     type: TransactionResponseDto,
   })
-  @ApiResponse({ status: 404, description: 'Transaction not found' })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Invalid transaction data'
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Transaction not found'
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Authentication is required'
+  })
   async update(
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,
@@ -193,14 +231,21 @@ export class TransactionsController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete a transaction' })
-  @ApiParam({ name: 'id', description: 'Transaction ID' })
+  @ApiOperation({ summary: 'Delete transaction' })
+  @ApiParam({ name: 'id', type: String, format: 'uuid', description: 'Transaction ID (UUID)', example: '123e4567-e89b-12d3-a456-426614174000' })
   @ApiResponse({
     status: 200,
     description: 'Transaction deleted successfully',
     type: TransactionResponseDto,
   })
-  @ApiResponse({ status: 404, description: 'Transaction not found' })
+  @ApiResponse({
+    status: 404,
+    description: 'Transaction not found'
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Authentication is required'
+  })
   async remove(
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,
@@ -220,6 +265,52 @@ export class TransactionsController {
         throw new NotFoundException(`Transaction with ID ${id} not found`);
       }
       throw error;
+    }
+  }
+
+  @Get('debug/query-params')
+  @ApiOperation({ summary: 'Debug query parameters (development only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns the raw query parameters for debugging',
+  })
+  async debugQueryParams(@Request() req, @Query() rawQuery: Record<string, any>) {
+    // Segurança: Só deve ser usado em desenvolvimento
+    if (process.env.NODE_ENV === 'production') {
+      throw new BadRequestException('This endpoint is not available in production mode');
+    }
+
+    try {
+      this.logger.log(`DEBUG query params: ${JSON.stringify(rawQuery)}`);
+
+      return {
+        rawQueryParams: rawQuery,
+        headers: req.headers,
+        validatedParams: await this.preprocessQueryParams(rawQuery),
+      };
+    } catch (error) {
+      return {
+        rawQueryParams: rawQuery,
+        headers: req.headers,
+        error: error.message,
+        stack: error.stack,
+      };
+    }
+  }
+
+  // Método helper para pré-processar os parâmetros da query
+  private async preprocessQueryParams(query: Record<string, any>) {
+    try {
+      // Usar o mesmo pipe que é usado na rota principal
+      const paginationParams = await new ZodValidationPipe(PaginationQuerySchema).transform(query, { type: 'query', metatype: Object });
+      const filterParams = await new ZodValidationPipe(transactionFilterSchema).transform(query, { type: 'query', metatype: Object });
+
+      return { paginationParams, filterParams };
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        return { validationError: error.getResponse() };
+      }
+      return { error: error.message };
     }
   }
 } 

@@ -28,20 +28,51 @@ export class TransactionRepository {
         ...(filter.category && { categoryId: filter.category }),
       };
 
-      // Handle month filtering properly
-      if (filter.month) {
+      // Handle month and year filtering
+      if (filter.month && filter.year) {
         try {
-          const [year, month] = filter.month.split('-').map(Number);
-          const startDate = new Date(year, month - 1, 1); // Month is 0-indexed in JS Date
-          const endDate = new Date(year, month, 0); // Last day of month
-          endDate.setHours(23, 59, 59, 999); // End of day
+          // Ensure values are valid numbers before parsing
+          if (!/^\d{4}$/.test(filter.year) || !/^(0[1-9]|1[0-2])$/.test(filter.month)) {
+            this.logger.warn(`Invalid format: year=${filter.year}, month=${filter.month}`);
+          } else {
+            const year = parseInt(filter.year);
+            const month = parseInt(filter.month);
 
-          where.date = {
-            gte: startDate,
-            lte: endDate,
-          };
+            // Create date range for the specified month
+            const startDate = new Date(year, month - 1, 1); // Month is 0-indexed in JS Date
+            const endDate = new Date(year, month, 0); // Last day of month
+            endDate.setHours(23, 59, 59, 999); // End of day
+
+            where.date = {
+              gte: startDate,
+              lte: endDate,
+            };
+
+            this.logger.debug(`Filtering transactions for ${year}-${month}`);
+          }
         } catch (error) {
-          this.logger.warn(`Invalid month format: ${filter.month}. Skipping date filter.`);
+          this.logger.warn(`Error processing date parameters: year=${filter.year}, month=${filter.month}, error=${error.message}`);
+        }
+      } else if (filter.year) {
+        // If only year is provided, filter for the entire year
+        try {
+          // Ensure value is a valid year before parsing
+          if (!/^\d{4}$/.test(filter.year)) {
+            this.logger.warn(`Invalid year format: ${filter.year}`);
+          } else {
+            const year = parseInt(filter.year);
+            const startDate = new Date(year, 0, 1); // January 1st
+            const endDate = new Date(year, 11, 31, 23, 59, 59, 999); // December 31st, end of day
+
+            where.date = {
+              gte: startDate,
+              lte: endDate,
+            };
+
+            this.logger.debug(`Filtering transactions for year ${year}`);
+          }
+        } catch (error) {
+          this.logger.warn(`Error processing year parameter: ${filter.year}, error=${error.message}`);
         }
       }
 
@@ -52,10 +83,15 @@ export class TransactionRepository {
         ];
       }
 
-      // Build the orderBy object
+      // Validate and build the orderBy object
+      const sortField = filter.sort || sortBy;
+      const sortDirection = filter.order || sortOrder;
+
       const orderBy: Prisma.TransactionOrderByWithRelationInput = {
-        [filter.sort || sortBy]: filter.order || sortOrder,
+        [sortField]: sortDirection,
       };
+
+      this.logger.debug(`Query params: where=${JSON.stringify(where)}, orderBy=${JSON.stringify(orderBy)}, skip=${skip}, take=${limit}`);
 
       // Execute the query with pagination
       const [transactions, total] = await Promise.all([

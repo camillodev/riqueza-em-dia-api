@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { Logger, LogLevel } from '@nestjs/common';
 import * as express from 'express';
 import { json } from 'express';
 import * as cookieParser from 'cookie-parser';
@@ -10,14 +10,25 @@ import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
+
+  // Get environment variables
+  const nodeEnv = process.env.NODE_ENV || 'development';
+  const isProduction = nodeEnv === 'production';
+
+  // Configure log levels based on environment
+  const logLevels: LogLevel[] = isProduction
+    ? ['error', 'warn', 'log']
+    : ['error', 'warn', 'log', 'debug', 'verbose'];
+
+  logger.log(`Starting application in ${nodeEnv} mode`);
+
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
-    logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+    logger: logLevels,
   });
 
   // Get configuration service
   const configService = app.get(ConfigService);
-  const isProduction = configService.get('app.isProd', false);
   const port = configService.get('app.port', 3001);
 
   // Security headers middleware
@@ -37,15 +48,8 @@ async function bootstrap() {
     limit: '10mb', // Limit body size
   }));
 
-  // Global validation pipe
-  app.useGlobalPipes(new ValidationPipe({
-    transform: true,
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transformOptions: {
-      enableImplicitConversion: false,
-    },
-  }));
+  // Removemos o pipe global em favor do ZodValidationPipe específico
+  // Isso evita conflitos de validação e simplifica o fluxo
 
   // Configure trusted proxies for production
   if (isProduction) {
@@ -67,22 +71,20 @@ async function bootstrap() {
     maxAge: 86400, // 24 hours
   });
 
-  // Swagger documentation setup (only in non-production environments)
-  if (!isProduction) {
-    const config = new DocumentBuilder()
-      .setTitle('Riqueza em Dia API')
-      .setDescription('API documentation for Riqueza em Dia application')
-      .setVersion('1.0')
-      .addBearerAuth()
-      .build();
-    const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api/docs', app, document);
-  }
+  // Configure Swagger documentation
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('Riqueza em Dia API')
+    .setDescription('API for financial tracking and management')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
 
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+  SwaggerModule.setup('api/docs', app, document);
+
+  // Start the server
   await app.listen(port);
-
-  logger.log(`Application is running on: http://localhost:${port}`);
-  logger.log(`Environment: ${isProduction ? 'Production' : 'Development'}`);
+  logger.log(`Application started on port ${port}`);
 }
 
 bootstrap().catch((err) => {
