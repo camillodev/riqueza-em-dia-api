@@ -140,9 +140,8 @@ export class ClerkAuthService {
         }
       } catch (jwksError) {
         this.logger.error(`JWKS fetch or verification error: ${jwksError.message}`);
-        // For debug purposes during development, we'll still try to fetch the user
-        // In production, you would want to throw the error here
-        this.logger.warn('Proceeding without verification for debugging purposes');
+        // Throw an error instead of proceeding without verification
+        throw new UnauthorizedException('Failed to verify token authenticity');
       }
 
       // Step 5: Find user in our database
