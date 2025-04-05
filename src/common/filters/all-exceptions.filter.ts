@@ -5,6 +5,7 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { ZodError } from 'zod';
@@ -28,8 +29,33 @@ export class AllExceptionsFilter implements ExceptionFilter {
     this.logger.error(`Exception: ${exception}`);
     this.logger.error(`Stack: ${(exception as any)?.stack || 'No stack trace'}`);
 
-    // Handle HttpExceptions (NestJS built-in)
-    if (exception instanceof HttpException) {
+    // Handle BadRequestException with validation errors specifically
+    if (exception instanceof BadRequestException) {
+      status = exception.getStatus();
+      error = 'Bad Request';
+
+      // Extract response data
+      const responseData = exception.getResponse() as any;
+
+      // Check if this is from our ZodValidationPipe
+      if (responseData && typeof responseData === 'object' && responseData.errors) {
+        message = responseData.message || 'Validation failed';
+        details = responseData.errors;
+      } else if (responseData && typeof responseData === 'object' && Array.isArray(responseData.message)) {
+        // Handle class-validator errors (array of validation errors)
+        message = 'Validation failed';
+        details = responseData.message.map((msg: string) => ({
+          message: msg
+        }));
+      } else {
+        // Default BadRequestException handling
+        message = typeof responseData === 'object'
+          ? responseData.message || exception.message
+          : responseData || exception.message;
+      }
+    }
+    // Handle other HttpExceptions (NestJS built-in)
+    else if (exception instanceof HttpException) {
       status = exception.getStatus();
       const errorResponse = exception.getResponse();
       message = typeof errorResponse === 'object'
@@ -43,7 +69,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = 'Validation error';
       error = 'Bad Request';
       details = exception.errors.map((err) => ({
-        path: err.path.join('.'),
+        field: err.path.join('.'),
         message: err.message,
       }));
     }

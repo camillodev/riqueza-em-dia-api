@@ -16,7 +16,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CategorySchema, UpdateCategorySchema, CategoryResponse } from './category.schema';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 
-@Controller('api/categories')
+@Controller('categories')
 @UseGuards(JwtAuthGuard)
 export class CategoriesController {
   constructor(private categoriesService: CategoriesService) { }

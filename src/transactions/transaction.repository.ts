@@ -18,51 +18,65 @@ export class TransactionRepository {
     const { page = 1, limit = 10, sortBy = 'date', sortOrder = 'desc' } = pagination;
     const skip = (page - 1) * limit;
 
-    // Build the where clause based on filters
-    const where: Prisma.TransactionWhereInput = {
-      userId,
-      // Only include if filter parameter is provided
-      ...(filter.type && { type: filter.type }),
-      ...(filter.account && { accountId: filter.account }),
-      ...(filter.category && { categoryId: filter.category }),
-      ...(filter.month && {
-        date: {
-          gte: new Date(`${filter.month}-01`),
-          lt: new Date(
-            new Date(`${filter.month}-01`).getFullYear(),
-            new Date(`${filter.month}-01`).getMonth() + 1,
-            1,
-          ),
-        },
-      }),
-      ...(filter.search && {
-        OR: [
+    try {
+      // Build the where clause based on filters
+      const where: Prisma.TransactionWhereInput = {
+        userId,
+        // Only include if filter parameter is provided
+        ...(filter.type && { type: filter.type }),
+        ...(filter.account && { accountId: filter.account }),
+        ...(filter.category && { categoryId: filter.category }),
+      };
+
+      // Handle month filtering properly
+      if (filter.month) {
+        try {
+          const [year, month] = filter.month.split('-').map(Number);
+          const startDate = new Date(year, month - 1, 1); // Month is 0-indexed in JS Date
+          const endDate = new Date(year, month, 0); // Last day of month
+          endDate.setHours(23, 59, 59, 999); // End of day
+
+          where.date = {
+            gte: startDate,
+            lte: endDate,
+          };
+        } catch (error) {
+          this.logger.warn(`Invalid month format: ${filter.month}. Skipping date filter.`);
+        }
+      }
+
+      // Handle search filter
+      if (filter.search) {
+        where.OR = [
           { description: { contains: filter.search, mode: 'insensitive' } },
-        ],
-      }),
-    };
+        ];
+      }
 
-    // Build the orderBy object
-    const orderBy: Prisma.TransactionOrderByWithRelationInput = {
-      [filter.sort || sortBy]: filter.order || sortOrder,
-    };
+      // Build the orderBy object
+      const orderBy: Prisma.TransactionOrderByWithRelationInput = {
+        [filter.sort || sortBy]: filter.order || sortOrder,
+      };
 
-    // Execute the query with pagination
-    const [transactions, total] = await Promise.all([
-      this.prisma.transaction.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy,
-        include: {
-          category: true,
-          account: true,
-        },
-      }),
-      this.prisma.transaction.count({ where }),
-    ]);
+      // Execute the query with pagination
+      const [transactions, total] = await Promise.all([
+        this.prisma.transaction.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy,
+          include: {
+            category: true,
+            account: true,
+          },
+        }),
+        this.prisma.transaction.count({ where }),
+      ]);
 
-    return { transactions, total };
+      return { transactions, total };
+    } catch (error) {
+      this.logger.error(`Error in findAll: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   async findOne(id: string, userId: string): Promise<Transaction | null> {

@@ -14,6 +14,9 @@ import {
   HttpStatus,
   UseInterceptors,
   ParseUUIDPipe,
+  BadRequestException,
+  NotFoundException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { CacheInterceptor } from '@nestjs/cache-manager';
 import {
@@ -23,7 +26,6 @@ import {
   ApiResponse,
   ApiTags,
   ApiQuery,
-  ApiProperty,
   ApiBody,
 } from '@nestjs/swagger';
 import { TransactionsService } from './transactions.service';
@@ -39,69 +41,8 @@ import {
   TransactionFilterDto,
 } from './transaction.schema';
 import { Transaction } from '@prisma/client';
-
-// Example DTO for documentation
-class TransactionResponseDto {
-  @ApiProperty({ example: 'uuid', description: 'Transaction ID' })
-  id: string;
-
-  @ApiProperty({ example: 10050, description: 'Amount in cents (integer)' })
-  amount: number;
-
-  @ApiProperty({ example: 'Salary payment', description: 'Transaction description' })
-  description: string;
-
-  @ApiProperty({ example: '2023-05-15', description: 'Transaction date (YYYY-MM-DD)' })
-  date: string;
-
-  @ApiProperty({ example: 'Salary', description: 'Category name' })
-  category: string;
-
-  @ApiProperty({ example: 'uuid', description: 'Category ID' })
-  categoryId: string;
-
-  @ApiProperty({ example: 'income', enum: ['income', 'expense'], description: 'Transaction type' })
-  type: string;
-
-  @ApiProperty({ example: 'Nubank', description: 'Account name' })
-  account: string;
-
-  @ApiProperty({ example: 'uuid', description: 'Account ID' })
-  accountId: string;
-
-  @ApiProperty({ example: 'completed', enum: ['pending', 'completed', 'canceled'], description: 'Transaction status' })
-  status: string;
-}
-
-// Example request body for documentation
-class CreateTransactionRequestDto {
-  @ApiProperty({ example: 10050, description: 'Amount in cents (integer)' })
-  amount: number;
-
-  @ApiProperty({ example: 'Salary payment', description: 'Transaction description' })
-  description: string;
-
-  @ApiProperty({ example: '2023-05-15', description: 'Transaction date (YYYY-MM-DD)' })
-  date: string;
-
-  @ApiProperty({ example: 'uuid', description: 'Category ID', required: false })
-  category?: string;
-
-  @ApiProperty({ example: 'income', enum: ['income', 'expense'], description: 'Transaction type' })
-  type: string;
-
-  @ApiProperty({ example: 'uuid', description: 'Account ID' })
-  account: string;
-
-  @ApiProperty({
-    example: 'completed',
-    enum: ['pending', 'completed', 'canceled'],
-    description: 'Transaction status',
-    default: 'pending',
-    required: false
-  })
-  status?: string;
-}
+import { TransactionResponseDto } from './dto/transaction-response.dto';
+import { CreateTransactionRequestDto } from './dto/create-transaction.dto';
 
 @ApiTags('transactions')
 @Controller('transactions')
@@ -117,7 +58,18 @@ export class TransactionsController {
   @ApiOperation({ summary: 'Get all transactions with pagination and filtering' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (starts from 1)' })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Page size (max 100)' })
-  @ApiQuery({ name: 'month', required: false, type: String, description: 'Filter by month (YYYY-MM)' })
+  @ApiQuery({
+    name: 'month',
+    required: false,
+    type: String,
+    description: 'Filter by month in YYYY-MM format (e.g., 2023-05) or month number (e.g., 04) - when using month number, year parameter is required'
+  })
+  @ApiQuery({
+    name: 'year',
+    required: false,
+    type: String,
+    description: 'Filter by year (YYYY) - required when month is provided as a number (01-12)'
+  })
   @ApiQuery({ name: 'type', required: false, enum: ['income', 'expense'], description: 'Filter by transaction type' })
   @ApiQuery({ name: 'category', required: false, type: String, description: 'Filter by category ID' })
   @ApiQuery({ name: 'account', required: false, type: String, description: 'Filter by account ID' })
@@ -129,6 +81,10 @@ export class TransactionsController {
     description: 'Returns all transactions with pagination. Note: Amounts are in cents (integer values)',
     type: [TransactionResponseDto],
   })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - when required parameters are missing, such as year when month is provided as a number'
+  })
   async findAll(
     @Request() req,
     @Query(new ZodValidationPipe(PaginationQuerySchema))
@@ -136,12 +92,18 @@ export class TransactionsController {
     @Query(new ZodValidationPipe(transactionFilterSchema))
     filterParams: TransactionFilterDto,
   ) {
-    this.logger.log(`GET transactions for user ${req.user.id}`);
-    return this.transactionsService.findAll(
-      req.user.id,
-      filterParams,
-      paginationParams,
-    );
+    try {
+      this.logger.log(`GET transactions for user ${req.user.id} with filters: ${JSON.stringify(filterParams)}`);
+
+      return await this.transactionsService.findAll(
+        req.user.id,
+        filterParams,
+        paginationParams,
+      );
+    } catch (error) {
+      this.logger.error(`Error getting transactions: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   @Get(':id')
@@ -157,8 +119,19 @@ export class TransactionsController {
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<Transaction> {
-    this.logger.log(`GET transaction ${id} for user ${req.user.id}`);
-    return this.transactionsService.findOne(id, req.user.id);
+    try {
+      this.logger.log(`GET transaction ${id} for user ${req.user.id}`);
+      const transaction = await this.transactionsService.findOne(id, req.user.id);
+
+      if (!transaction) {
+        throw new NotFoundException(`Transaction with ID ${id} not found`);
+      }
+
+      return transaction;
+    } catch (error) {
+      this.logger.error(`Error getting transaction ${id}: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   @Post()
@@ -174,8 +147,16 @@ export class TransactionsController {
     @Request() req,
     @Body(new ZodValidationPipe(createTransactionSchema)) createTransactionDto: CreateTransactionDto,
   ): Promise<Transaction> {
-    this.logger.log(`POST new transaction for user ${req.user.id}`);
-    return this.transactionsService.create(req.user.id, createTransactionDto);
+    try {
+      this.logger.log(`POST new transaction for user ${req.user.id}`);
+      return await this.transactionsService.create(req.user.id, createTransactionDto);
+    } catch (error) {
+      this.logger.error(`Error creating transaction: ${error.message}`, error.stack);
+      if (error.code === 'P2003') {
+        throw new BadRequestException(`Invalid reference: ${error.meta?.field_name || 'Unknown field'}`);
+      }
+      throw error;
+    }
   }
 
   @Put(':id')
@@ -193,8 +174,22 @@ export class TransactionsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body(new ZodValidationPipe(updateTransactionSchema)) updateTransactionDto: UpdateTransactionDto,
   ): Promise<Transaction> {
-    this.logger.log(`PUT update transaction ${id} for user ${req.user.id}`);
-    return this.transactionsService.update(id, req.user.id, updateTransactionDto);
+    try {
+      this.logger.log(`PUT update transaction ${id} for user ${req.user.id}`);
+      const transaction = await this.transactionsService.update(id, req.user.id, updateTransactionDto);
+
+      if (!transaction) {
+        throw new NotFoundException(`Transaction with ID ${id} not found`);
+      }
+
+      return transaction;
+    } catch (error) {
+      this.logger.error(`Error updating transaction ${id}: ${error.message}`, error.stack);
+      if (error.code === 'P2025') {
+        throw new NotFoundException(`Transaction with ID ${id} not found`);
+      }
+      throw error;
+    }
   }
 
   @Delete(':id')
@@ -210,7 +205,21 @@ export class TransactionsController {
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<Transaction> {
-    this.logger.log(`DELETE transaction ${id} for user ${req.user.id}`);
-    return this.transactionsService.remove(id, req.user.id);
+    try {
+      this.logger.log(`DELETE transaction ${id} for user ${req.user.id}`);
+      const transaction = await this.transactionsService.remove(id, req.user.id);
+
+      if (!transaction) {
+        throw new NotFoundException(`Transaction with ID ${id} not found`);
+      }
+
+      return transaction;
+    } catch (error) {
+      this.logger.error(`Error deleting transaction ${id}: ${error.message}`, error.stack);
+      if (error.code === 'P2025') {
+        throw new NotFoundException(`Transaction with ID ${id} not found`);
+      }
+      throw error;
+    }
   }
 } 
