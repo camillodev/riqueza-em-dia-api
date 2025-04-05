@@ -18,7 +18,7 @@ async function bootstrap() {
   // Get configuration service
   const configService = app.get(ConfigService);
   const isProduction = configService.get('app.isProd', false);
-  const port = configService.get('app.port', 3000);
+  const port = configService.get('app.port', 3001);
 
   // Security headers middleware
   app.use(helmet());
