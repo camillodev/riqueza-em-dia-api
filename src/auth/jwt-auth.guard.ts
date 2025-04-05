@@ -14,22 +14,26 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest();
 
+    // Log headers in verbose mode
+    this.logger.verbose(`Request headers: ${JSON.stringify(request.headers)}`);
+
+    // Extract token from Authorization header
     const token = this.extractTokenFromHeader(request);
     if (!token) {
-      this.logger.warn('Token não encontrado nos headers da requisição');
-      throw new UnauthorizedException('Token de autenticação ausente');
+      this.logger.warn('No authentication token found in request headers');
+      throw new UnauthorizedException('Authentication token missing');
     }
 
     try {
-      // Verificar o token e obter dados do usuário
+      // Verify token and get user data
       const user = await this.clerkAuthService.verifyTokenAndGetUser(token);
 
-      // Adicionar usuário à requisição
+      // Add user to request
       request.user = user;
       return true;
     } catch (error) {
-      this.logger.error(`Falha na autenticação: ${error.message}`, error.stack);
-      throw new UnauthorizedException('Token de autenticação inválido');
+      this.logger.error(`Authentication failed: ${error.message}`, error.stack);
+      throw new UnauthorizedException('Invalid authentication token');
     }
   }
 

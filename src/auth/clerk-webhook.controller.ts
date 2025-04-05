@@ -35,24 +35,58 @@ export class ClerkWebhookController {
       this.logger.log(`Processing Clerk webhook event: ${type}`);
 
       if (type === 'user.created' || type === 'user.updated') {
-        const { id, email_addresses, first_name, last_name, image_url } = data;
+        const { id, email_addresses, first_name, last_name, image_url, profile_image_url, primary_email_address_id } = data;
 
-        const primaryEmail = email_addresses.find(email => email.primary)?.email_address;
+        this.logger.log(`Processing webhook data - User ID: ${id}`);
+        this.logger.log(`Email addresses raw data: ${JSON.stringify(email_addresses)}`);
+        this.logger.log(`Primary email ID: ${primary_email_address_id}`);
+
+        // Try to find the primary email by ID first
+        let primaryEmail = null;
+
+        if (primary_email_address_id && email_addresses) {
+          const primaryEmailObj = email_addresses.find(email => email.id === primary_email_address_id);
+          if (primaryEmailObj) {
+            primaryEmail = primaryEmailObj.email_address;
+            this.logger.log(`Found primary email by ID: ${primaryEmail}`);
+          }
+        }
+
+        // Fallback to first email or finding one marked as primary
+        if (!primaryEmail && email_addresses && email_addresses.length > 0) {
+          // Try to find email marked as primary
+          const firstPrimaryEmail = email_addresses.find(email => email.primary === true || email.verification?.status === 'verified');
+
+          if (firstPrimaryEmail) {
+            primaryEmail = firstPrimaryEmail.email_address;
+            this.logger.log(`Found primary email by 'primary' flag: ${primaryEmail}`);
+          } else {
+            // Just use the first email
+            primaryEmail = email_addresses[0].email_address;
+            this.logger.log(`Using first email as fallback: ${primaryEmail}`);
+          }
+        }
+
         if (!primaryEmail) {
-          this.logger.warn(`User ${id} has no primary email address`);
-          return { success: false, message: 'No primary email address found' };
+          this.logger.warn(`User ${id} has no email address`);
+          return { success: false, message: 'No email address found' };
         }
 
         const clerkUserData = new ClerkUserDataDto();
         clerkUserData.clerkId = id;
         clerkUserData.email = primaryEmail;
-        clerkUserData.fullName = `${first_name} ${last_name}`.trim();
-        clerkUserData.avatarUrl = image_url;
+        clerkUserData.fullName = `${first_name || ''} ${last_name || ''}`.trim();
+        clerkUserData.avatarUrl = profile_image_url || image_url;
 
-        await this.clerkAuthService.getOrCreateUser(clerkUserData);
-
-        this.logger.log(`Successfully processed ${type} event for user ${id}`);
-        return { success: true };
+        this.logger.log(`Attempting to create/update user with data: ${JSON.stringify(clerkUserData)}`);
+        try {
+          await this.clerkAuthService.getOrCreateUser(clerkUserData);
+          this.logger.log(`Successfully processed ${type} event for user ${id}`);
+          return { success: true };
+        } catch (error) {
+          this.logger.error(`Error creating/updating user: ${error.message}`, error.stack);
+          return { success: false, error: error.message };
+        }
       }
 
       if (type === 'user.deleted') {
@@ -81,8 +115,14 @@ export class ClerkWebhookController {
     svixSignature: string,
     request: RawBodyRequest<Request>
   ): Promise<void> {
-    // Only verify signature in production
-    if (process.env.NODE_ENV !== 'production') {
+    // Check if we're in development mode
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+
+    this.logger.log(`Verifying webhook in ${isDevelopment ? 'development' : 'production'} mode`);
+
+    // In development, we may skip signature verification
+    if (isDevelopment && process.env.SKIP_WEBHOOK_VERIFICATION === 'true') {
+      this.logger.warn('Skipping webhook signature verification in development mode');
       return;
     }
 
@@ -94,20 +134,53 @@ export class ClerkWebhookController {
     }
 
     if (!svixId || !svixTimestamp || !svixSignature) {
-      this.logger.warn('Missing Svix headers');
+      this.logger.warn(`Missing Svix headers: ID=${!!svixId}, Timestamp=${!!svixTimestamp}, Signature=${!!svixSignature}`);
+
+      // Be more lenient in development mode
+      if (isDevelopment) {
+        this.logger.warn('Continuing despite missing headers in development mode');
+        return;
+      }
+
       throw new UnauthorizedException('Missing verification headers');
     }
 
     const rawBody = request.rawBody;
     if (!rawBody) {
       this.logger.warn('Request rawBody is missing');
+
+      // Be more lenient in development mode
+      if (isDevelopment) {
+        this.logger.warn('Continuing despite missing raw body in development mode');
+        return;
+      }
+
       throw new UnauthorizedException('Invalid request format');
     }
 
+    // In development mode, we can be more lenient with signature verification
+    if (isDevelopment) {
+      try {
+        const verified = this.verifyWebhookSignature(svixId, svixTimestamp, svixSignature, rawBody.toString(), webhookSecret);
+        if (!verified) {
+          this.logger.warn('Invalid webhook signature in development mode, but continuing anyway');
+        } else {
+          this.logger.log('Webhook signature verified successfully');
+        }
+        return;
+      } catch (error) {
+        this.logger.warn(`Webhook verification error in development mode: ${error.message}`);
+        return;
+      }
+    }
+
+    // In production, we must strictly verify the signature
     if (!this.verifyWebhookSignature(svixId, svixTimestamp, svixSignature, rawBody.toString(), webhookSecret)) {
       this.logger.warn('Invalid webhook signature');
       throw new UnauthorizedException('Invalid webhook signature');
     }
+
+    this.logger.log('Webhook verification successful');
   }
 
   private verifyWebhookSignature(svixId: string, svixTimestamp: string, svixSignature: string, payload: string, secret: string): boolean {
