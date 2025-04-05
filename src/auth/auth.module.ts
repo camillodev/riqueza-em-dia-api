@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '../prisma/prisma.module';
 import { ClerkAuthService } from './services/clerk-auth.service';
 import { ClerkWebhookController } from './clerk-webhook.controller';
+import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Module({
   imports: [
@@ -10,7 +11,13 @@ import { ClerkWebhookController } from './clerk-webhook.controller';
     ConfigModule,
   ],
   controllers: [ClerkWebhookController],
-  providers: [ClerkAuthService],
-  exports: [ClerkAuthService],
+  providers: [
+    ClerkAuthService,
+    JwtAuthGuard,
+  ],
+  exports: [
+    ClerkAuthService,
+    JwtAuthGuard,
+  ],
 })
 export class AuthModule { } 
