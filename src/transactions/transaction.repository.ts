@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { TransactionFilter } from '../schemas/transaction.schema';
+import { TransactionFilter } from './transaction.schema';
 import { Prisma, Transaction } from '@prisma/client';
 import { PaginationQueryParams } from '../common/dtos/pagination.dto';
 
