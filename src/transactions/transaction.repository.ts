@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { TransactionFilter } from '../schemas/transaction.schema';
 import { Prisma, Transaction } from '@prisma/client';
-import { PaginationQueryParams } from '../../common/dtos/pagination.dto';
+import { PaginationQueryParams } from '../common/dtos/pagination.dto';
 
 @Injectable()
 export class TransactionRepository {

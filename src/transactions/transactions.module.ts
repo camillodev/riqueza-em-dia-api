@@ -1,7 +1,7 @@
 import { Module, MiddlewareConsumer } from '@nestjs/common';
-import { TransactionsController } from './controllers/transactions.controller';
-import { TransactionsService } from './services/transactions.service';
-import { TransactionRepository } from './repositories/transaction.repository';
+import { TransactionsController } from './transactions.controller';
+import { TransactionsService } from './transactions.service';
+import { TransactionRepository } from './transaction.repository';
 import { PrismaModule } from '../prisma/prisma.module';
 import { CommonModule } from '../common/common.module';
 import { SecurityMiddleware } from '../common/middleware/security.middleware';

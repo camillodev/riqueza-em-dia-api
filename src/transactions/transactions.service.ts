@@ -5,14 +5,14 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { TransactionRepository } from '../repositories/transaction.repository';
-import { PaginationQueryParams } from '../../common/dtos/pagination.dto';
+import { TransactionRepository } from './transaction.repository';
+import { PaginationQueryParams } from '../common/dtos/pagination.dto';
 import {
   CreateTransactionDto,
   UpdateTransactionDto,
   TransactionFilter,
-} from '../schemas/transaction.schema';
-import { PrismaService } from '../../prisma/prisma.service';
+} from './transaction.schema';
+import { PrismaService } from '../prisma/prisma.service';
 import { Transaction, Prisma, Category, Account } from '@prisma/client';
 
 @Injectable()
@@ -168,7 +168,7 @@ export class TransactionsService {
 
       // Prepare update data
       const updateData: Prisma.TransactionUpdateInput = {
-        ...(updateTransactionDto.amount !== undefined && { 
+        ...(updateTransactionDto.amount !== undefined && {
           amount: updateTransactionDto.amount // Already in cents from validation
         }),
         ...(updateTransactionDto.description && { description: updateTransactionDto.description }),
@@ -192,7 +192,7 @@ export class TransactionsService {
           const oldType = existingTransaction.type;
           // If amount is provided, it's already in cents from validation
           const newAmount = updateTransactionDto.amount !== undefined
-            ? updateTransactionDto.amount 
+            ? updateTransactionDto.amount
             : oldAmount;
           const newType = updateTransactionDto.type ?? oldType;
 
@@ -280,7 +280,7 @@ export class TransactionsService {
   // Helper method to format transaction for response
   private formatTransaction(transaction: Transaction & {
     category?: Category | null,
-    account?: Account | null 
+    account?: Account | null
   }) {
     return {
       id: transaction.id,

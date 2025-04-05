@@ -26,10 +26,10 @@ import {
   ApiProperty,
   ApiBody,
 } from '@nestjs/swagger';
-import { TransactionsService } from '../services/transactions.service';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { PaginationQuerySchema, PaginationQueryParams } from '../../common/dtos/pagination.dto';
+import { TransactionsService } from './transactions.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
+import { PaginationQuerySchema, PaginationQueryParams } from '../common/dtos/pagination.dto';
 import {
   createTransactionSchema,
   updateTransactionSchema,
@@ -37,7 +37,7 @@ import {
   CreateTransactionDto,
   UpdateTransactionDto,
   TransactionFilterDto,
-} from '../schemas/transaction.schema';
+} from './transaction.schema';
 import { Transaction } from '@prisma/client';
 
 // Example DTO for documentation
