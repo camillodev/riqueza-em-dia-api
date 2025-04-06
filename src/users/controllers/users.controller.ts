@@ -1,9 +1,11 @@
-import { Controller, Get, Put, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Put, Body, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { UsersService } from '../services/users.service';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { UserResponseDto } from '../dto/user-response.dto';
-import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
+import { ClerkAuthGuard } from '../../auth/clerk-auth.guard';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { User } from '@clerk/backend';
 
 @ApiTags('users')
 @Controller('users')
@@ -11,7 +13,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
   @Get('current')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(ClerkAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current user information' })
   @ApiResponse({
@@ -20,13 +22,13 @@ export class UsersController {
     type: UserResponseDto,
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async getCurrentUser(@Request() req): Promise<UserResponseDto> {
-    const user = await this.usersService.findById(req.user.id);
-    return new UserResponseDto(user);
+  async getCurrentUser(@CurrentUser() user: User): Promise<UserResponseDto> {
+    const userFromDb = await this.usersService.findById(user.id);
+    return new UserResponseDto(userFromDb);
   }
 
   @Put('update')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(ClerkAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update user profile' })
   @ApiResponse({
@@ -36,11 +38,11 @@ export class UsersController {
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async updateProfile(
-    @Request() req,
+    @CurrentUser() user: User,
     @Body() updateUserDto: UpdateUserDto,
   ): Promise<UserResponseDto> {
     const updatedUser = await this.usersService.updateUser(
-      req.user.id,
+      user.id,
       updateUserDto,
     );
     return new UserResponseDto(updatedUser);

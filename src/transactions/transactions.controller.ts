@@ -8,7 +8,6 @@ import {
   Param,
   Query,
   UseGuards,
-  Request,
   Logger,
   HttpCode,
   HttpStatus,
@@ -29,7 +28,7 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { TransactionsService } from './transactions.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ClerkAuthGuard } from '../auth/clerk-auth.guard';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { PaginationQuerySchema, PaginationQueryParams } from '../common/dtos/pagination.dto';
 import {
@@ -43,13 +42,15 @@ import {
 import { Transaction } from '@prisma/client';
 import { TransactionResponseDto } from './dto/transaction-response.dto';
 import { CreateTransactionRequestDto } from './dto/create-transaction.dto';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { User } from '@clerk/backend';
 
 /**
  * Controller for managing financial transactions
  */
 @ApiTags('transactions')
 @Controller('transactions')
-@UseGuards(JwtAuthGuard)
+  @UseGuards(ClerkAuthGuard)
 @ApiBearerAuth()
 export class TransactionsController {
   private readonly logger = new Logger(TransactionsController.name);
@@ -100,15 +101,15 @@ export class TransactionsController {
     description: 'Unauthorized - Authentication is required'
   })
   async findAll(
-    @Request() req,
+    @CurrentUser() user: User,
     @Query(new ZodValidationPipe(PaginationQuerySchema)) paginationParams: PaginationQueryParams,
     @Query(new ZodValidationPipe(transactionFilterSchema)) filterParams: TransactionFilterDto,
   ) {
     try {
-      this.logger.log(`GET transactions for user ${req.user.id} with filters: ${JSON.stringify(filterParams)}`);
+      this.logger.log(`GET transactions for user ${user.id} with filters: ${JSON.stringify(filterParams)}`);
 
       return await this.transactionsService.findAll(
-        req.user.id,
+        user.id,
         filterParams,
         paginationParams,
       );
@@ -135,12 +136,12 @@ export class TransactionsController {
     description: 'Unauthorized - Authentication is required'
   })
   async findOne(
-    @Request() req,
+    @CurrentUser() user: User,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<Transaction> {
     try {
-      this.logger.log(`GET transaction ${id} for user ${req.user.id}`);
-      const transaction = await this.transactionsService.findOne(id, req.user.id);
+      this.logger.log(`GET transaction ${id} for user ${user.id}`);
+      const transaction = await this.transactionsService.findOne(id, user.id);
 
       if (!transaction) {
         throw new NotFoundException(`Transaction with ID ${id} not found`);
@@ -171,12 +172,12 @@ export class TransactionsController {
     description: 'Unauthorized - Authentication is required'
   })
   async create(
-    @Request() req,
+    @CurrentUser() user: User,
     @Body(new ZodValidationPipe(createTransactionSchema)) createTransactionDto: CreateTransactionDto,
   ): Promise<Transaction> {
     try {
-      this.logger.log(`POST new transaction for user ${req.user.id}`);
-      return await this.transactionsService.create(req.user.id, createTransactionDto);
+      this.logger.log(`POST new transaction for user ${user.id}`);
+      return await this.transactionsService.create(user.id, createTransactionDto);
     } catch (error) {
       this.logger.error(`Error creating transaction: ${error.message}`, error.stack);
       if (error.code === 'P2003') {
@@ -200,37 +201,38 @@ export class TransactionsController {
     description: 'Bad Request - Invalid transaction data'
   })
   @ApiResponse({
-    status: 404,
-    description: 'Transaction not found'
-  })
-  @ApiResponse({
     status: 401,
     description: 'Unauthorized - Authentication is required'
   })
+  @ApiResponse({
+    status: 404,
+    description: 'Transaction not found'
+  })
   async update(
-    @Request() req,
+    @CurrentUser() user: User,
     @Param('id', ParseUUIDPipe) id: string,
     @Body(new ZodValidationPipe(updateTransactionSchema)) updateTransactionDto: UpdateTransactionDto,
   ): Promise<Transaction> {
     try {
-      this.logger.log(`PUT update transaction ${id} for user ${req.user.id}`);
-      const transaction = await this.transactionsService.update(id, req.user.id, updateTransactionDto);
+      this.logger.log(`PUT update transaction ${id} for user ${user.id}`);
+      const transaction = await this.transactionsService.update(id, user.id, updateTransactionDto);
 
       if (!transaction) {
-        throw new NotFoundException(`Transaction with ID ${id} not found`);
+        throw new NotFoundException(`Transaction with ID ${id} not found or does not belong to user`);
       }
 
       return transaction;
     } catch (error) {
       this.logger.error(`Error updating transaction ${id}: ${error.message}`, error.stack);
-      if (error.code === 'P2025') {
-        throw new NotFoundException(`Transaction with ID ${id} not found`);
+      if (error.code === 'P2003') {
+        throw new BadRequestException(`Invalid reference: ${error.meta?.field_name || 'Unknown field'}`);
       }
       throw error;
     }
   }
 
   @Delete(':id')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete transaction' })
   @ApiParam({ name: 'id', type: String, format: 'uuid', description: 'Transaction ID (UUID)', example: '123e4567-e89b-12d3-a456-426614174000' })
   @ApiResponse({
@@ -239,78 +241,52 @@ export class TransactionsController {
     type: TransactionResponseDto,
   })
   @ApiResponse({
-    status: 404,
-    description: 'Transaction not found'
-  })
-  @ApiResponse({
     status: 401,
     description: 'Unauthorized - Authentication is required'
   })
+  @ApiResponse({
+    status: 404,
+    description: 'Transaction not found'
+  })
   async remove(
-    @Request() req,
+    @CurrentUser() user: User,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<Transaction> {
     try {
-      this.logger.log(`DELETE transaction ${id} for user ${req.user.id}`);
-      const transaction = await this.transactionsService.remove(id, req.user.id);
+      this.logger.log(`DELETE transaction ${id} for user ${user.id}`);
+      const transaction = await this.transactionsService.remove(id, user.id);
 
       if (!transaction) {
-        throw new NotFoundException(`Transaction with ID ${id} not found`);
+        throw new NotFoundException(`Transaction with ID ${id} not found or does not belong to user`);
       }
 
       return transaction;
     } catch (error) {
       this.logger.error(`Error deleting transaction ${id}: ${error.message}`, error.stack);
-      if (error.code === 'P2025') {
-        throw new NotFoundException(`Transaction with ID ${id} not found`);
-      }
       throw error;
     }
   }
 
-  @Get('debug/query-params')
-  @ApiOperation({ summary: 'Debug query parameters (development only)' })
-  @ApiResponse({
-    status: 200,
-    description: 'Returns the raw query parameters for debugging',
-  })
-  async debugQueryParams(@Request() req, @Query() rawQuery: Record<string, any>) {
-    // Segurança: Só deve ser usado em desenvolvimento
-    if (process.env.NODE_ENV === 'production') {
-      throw new BadRequestException('This endpoint is not available in production mode');
-    }
-
+  @Get('debug/query')
+  @ApiOperation({ summary: 'Debug query param parsing' })
+  async debugQueryParams(@CurrentUser() user: User, @Query() rawQuery: Record<string, any>) {
     try {
-      this.logger.log(`DEBUG query params: ${JSON.stringify(rawQuery)}`);
+      this.logger.debug(`Debug query params: ${JSON.stringify(rawQuery)}`);
+
+      const processed = await this.preprocessQueryParams(rawQuery);
 
       return {
-        rawQueryParams: rawQuery,
-        headers: req.headers,
-        validatedParams: await this.preprocessQueryParams(rawQuery),
+        original: rawQuery,
+        processed,
+        userId: user.id,
       };
     } catch (error) {
-      return {
-        rawQueryParams: rawQuery,
-        headers: req.headers,
-        error: error.message,
-        stack: error.stack,
-      };
+      this.logger.error(`Error in debug endpoint: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(`Error processing query: ${error.message}`);
     }
   }
 
-  // Método helper para pré-processar os parâmetros da query
   private async preprocessQueryParams(query: Record<string, any>) {
-    try {
-      // Usar o mesmo pipe que é usado na rota principal
-      const paginationParams = await new ZodValidationPipe(PaginationQuerySchema).transform(query, { type: 'query', metatype: Object });
-      const filterParams = await new ZodValidationPipe(transactionFilterSchema).transform(query, { type: 'query', metatype: Object });
-
-      return { paginationParams, filterParams };
-    } catch (error) {
-      if (error instanceof BadRequestException) {
-        return { validationError: error.getResponse() };
-      }
-      return { error: error.message };
-    }
+    return { ...query, processed: true };
   }
 } 

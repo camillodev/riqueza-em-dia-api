@@ -4,8 +4,7 @@ import {
   Query,
   UseGuards,
   Logger,
-  UseInterceptors,
-  Request
+  UseInterceptors
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -15,7 +14,7 @@ import {
   ApiTags
 } from '@nestjs/swagger';
 import { CacheInterceptor } from '@nestjs/cache-manager';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ClerkAuthGuard } from '../auth/clerk-auth.guard';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { ReportsService } from './reports.service';
 import {
@@ -33,10 +32,12 @@ import {
   ChartItemDto,
   MonthlyDataItemDto
 } from './dtos/report-response.dto';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { User } from '@clerk/backend';
 
 @ApiTags('reports')
 @Controller('reports')
-@UseGuards(JwtAuthGuard)
+  @UseGuards(ClerkAuthGuard)
 @ApiBearerAuth()
 export class ReportsController {
   private readonly logger = new Logger(ReportsController.name);
@@ -53,11 +54,11 @@ export class ReportsController {
     type: SummaryReportResponseDto,
   })
   async getSummary(
-    @Request() req,
+    @CurrentUser() user: User,
     @Query(new ZodValidationPipe(summaryReportSchema)) query: SummaryReportDto,
   ): Promise<SummaryReportResponseDto> {
-    this.logger.log(`GET financial summary for user ${req.user.id}`);
-    return this.reportsService.getSummary(req.user.id, query.month);
+    this.logger.log(`GET financial summary for user ${user.id}`);
+    return this.reportsService.getSummary(user.id, query.month);
   }
 
   @Get('charts/income-vs-expense')
@@ -70,11 +71,11 @@ export class ReportsController {
     type: [ChartItemDto],
   })
   async getIncomeVsExpense(
-    @Request() req,
+    @CurrentUser() user: User,
     @Query(new ZodValidationPipe(incomeVsExpenseSchema)) query: IncomeVsExpenseDto,
   ): Promise<ChartItemDto[]> {
-    this.logger.log(`GET income vs expense data for user ${req.user.id}`);
-    return this.reportsService.getIncomeVsExpense(req.user.id, query.month);
+    this.logger.log(`GET income vs expense data for user ${user.id}`);
+    return this.reportsService.getIncomeVsExpense(user.id, query.month);
   }
 
   @Get('charts/by-category')
@@ -88,11 +89,11 @@ export class ReportsController {
     type: [ChartItemDto],
   })
   async getByCategory(
-    @Request() req,
+    @CurrentUser() user: User,
     @Query(new ZodValidationPipe(byCategorySchema)) query: ByCategoryDto,
   ): Promise<ChartItemDto[]> {
-    this.logger.log(`GET transactions by category for user ${req.user.id}`);
-    return this.reportsService.getByCategory(req.user.id, query.type, query.month);
+    this.logger.log(`GET transactions by category for user ${user.id}`);
+    return this.reportsService.getByCategory(user.id, query.type, query.month);
   }
 
   @Get('charts/monthly-data')
@@ -106,10 +107,10 @@ export class ReportsController {
     type: [MonthlyDataItemDto],
   })
   async getMonthlyData(
-    @Request() req,
+    @CurrentUser() user: User,
     @Query(new ZodValidationPipe(monthlyDataSchema)) query: MonthlyDataDto,
   ): Promise<MonthlyDataItemDto[]> {
-    this.logger.log(`GET monthly data for user ${req.user.id}`);
-    return this.reportsService.getMonthlyData(req.user.id, query.month, query.days);
+    this.logger.log(`GET monthly data for user ${user.id}`);
+    return this.reportsService.getMonthlyData(user.id, query.month, query.days);
   }
 }

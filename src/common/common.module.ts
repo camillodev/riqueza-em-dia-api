@@ -6,6 +6,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 import { CustomThrottlerGuard } from './guards/throttler.guard';
 import { AppCacheModule } from './cache/cache.module';
 import appConfig from './config/app.config';
+import { ClerkModule } from '../auth/providers/clerk.module';
 
 @Module({
   imports: [
@@ -23,6 +24,9 @@ import appConfig from './config/app.config';
 
     // Caching
     AppCacheModule,
+
+    // Auth
+    ClerkModule,
   ],
   providers: [
     // Global exception filter
@@ -39,6 +43,7 @@ import appConfig from './config/app.config';
   ],
   exports: [
     AppCacheModule,
+    ClerkModule,
   ],
 })
 export class CommonModule { } 

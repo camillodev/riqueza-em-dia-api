@@ -8,7 +8,6 @@ import {
   Param,
   Query,
   UseGuards,
-  Request,
   Logger,
   HttpCode,
   HttpStatus,
@@ -25,7 +24,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { AccountsService } from '../services/accounts.service';
-import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
+import { ClerkAuthGuard } from '../../auth/clerk-auth.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { PaginationQuerySchema, PaginationQueryParams } from '../../common/dtos/pagination.dto';
 import {
@@ -39,10 +38,12 @@ import {
   AccountFilterDto,
 } from '../schemas/account.schema';
 import { Account } from '@prisma/client';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { User } from '@clerk/backend';
 
 @ApiTags('accounts')
 @Controller('accounts')
-@UseGuards(JwtAuthGuard)
+  @UseGuards(ClerkAuthGuard)
 @ApiBearerAuth()
 export class AccountsController {
   private readonly logger = new Logger(AccountsController.name);
@@ -62,15 +63,15 @@ export class AccountsController {
     description: 'Returns all user accounts',
   })
   async findAll(
-    @Request() req,
+    @CurrentUser() user: User,
     @Query(new ZodValidationPipe(PaginationQuerySchema))
     paginationParams: PaginationQueryParams,
     @Query(new ZodValidationPipe(accountFilterSchema))
     filterParams: AccountFilterDto,
   ) {
-    this.logger.log(`GET accounts for user ${req.user.id}`);
+    this.logger.log(`GET accounts for user ${user.id}`);
     return this.accountsService.findAllByUserId(
-      req.user.id,
+      user.id,
       filterParams,
       paginationParams,
     );
@@ -83,9 +84,9 @@ export class AccountsController {
     status: 200,
     description: 'Returns account summary data',
   })
-  async getSummary(@Request() req) {
-    this.logger.log(`GET accounts summary for user ${req.user.id}`);
-    return this.accountsService.getAccountsSummary(req.user.id);
+  async getSummary(@CurrentUser() user: User) {
+    this.logger.log(`GET accounts summary for user ${user.id}`);
+    return this.accountsService.getAccountsSummary(user.id);
   }
 
   @Get(':id')
@@ -97,11 +98,11 @@ export class AccountsController {
   })
   @ApiResponse({ status: 404, description: 'Account not found' })
   async findOne(
-    @Request() req,
+    @CurrentUser() user: User,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<Account> {
-    this.logger.log(`GET account ${id} for user ${req.user.id}`);
-    return this.accountsService.findOneById(id, req.user.id);
+    this.logger.log(`GET account ${id} for user ${user.id}`);
+    return this.accountsService.findOneById(id, user.id);
   }
 
   @Post()
@@ -112,11 +113,11 @@ export class AccountsController {
     description: 'Account created successfully',
   })
   async create(
-    @Request() req,
+    @CurrentUser() user: User,
     @Body(new ZodValidationPipe(createAccountSchema)) createAccountDto: CreateAccountDto,
   ): Promise<Account> {
-    this.logger.log(`POST new account for user ${req.user.id}`);
-    return this.accountsService.create(req.user.id, createAccountDto);
+    this.logger.log(`POST new account for user ${user.id}`);
+    return this.accountsService.create(user.id, createAccountDto);
   }
 
   @Put(':id')
@@ -128,12 +129,12 @@ export class AccountsController {
   })
   @ApiResponse({ status: 404, description: 'Account not found' })
   async update(
-    @Request() req,
+    @CurrentUser() user: User,
     @Param('id', ParseUUIDPipe) id: string,
     @Body(new ZodValidationPipe(updateAccountSchema)) updateAccountDto: UpdateAccountDto,
   ): Promise<Account> {
-    this.logger.log(`PUT update account ${id} for user ${req.user.id}`);
-    return this.accountsService.update(id, req.user.id, updateAccountDto);
+    this.logger.log(`PUT update account ${id} for user ${user.id}`);
+    return this.accountsService.update(id, user.id, updateAccountDto);
   }
 
   @Delete(':id')
@@ -145,11 +146,11 @@ export class AccountsController {
   })
   @ApiResponse({ status: 404, description: 'Account not found' })
   async remove(
-    @Request() req,
+    @CurrentUser() user: User,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<Account> {
-    this.logger.log(`DELETE account ${id} for user ${req.user.id}`);
-    return this.accountsService.remove(id, req.user.id);
+    this.logger.log(`DELETE account ${id} for user ${user.id}`);
+    return this.accountsService.remove(id, user.id);
   }
 
   @Put(':id/archive')
@@ -161,14 +162,14 @@ export class AccountsController {
   })
   @ApiResponse({ status: 404, description: 'Account not found' })
   async updateArchiveStatus(
-    @Request() req,
+    @CurrentUser() user: User,
     @Param('id', ParseUUIDPipe) id: string,
     @Body(new ZodValidationPipe(archiveAccountSchema)) archiveAccountDto: ArchiveAccountDto,
   ): Promise<Account> {
-    this.logger.log(`PUT archive status ${id} to ${archiveAccountDto.isArchived} for user ${req.user.id}`);
+    this.logger.log(`PUT archive status ${id} to ${archiveAccountDto.isArchived} for user ${user.id}`);
     return this.accountsService.updateArchiveStatus(
       id,
-      req.user.id,
+      user.id,
       archiveAccountDto.isArchived,
     );
   }
