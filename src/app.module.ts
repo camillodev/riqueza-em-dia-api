@@ -9,6 +9,7 @@ import { CommonModule } from './common/common.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { ReportsModule } from './reports/reports.module';
 import { CategoriesModule } from './categories/categories.module';
+import { ClerkClientProvider } from './auth/providers/clerk-client.provider';
 
 @Module({
   imports: [
@@ -22,6 +23,9 @@ import { CategoriesModule } from './categories/categories.module';
     CategoriesModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    ClerkClientProvider,
+  ],
 })
 export class AppModule { }
