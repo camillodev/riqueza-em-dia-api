@@ -94,7 +94,6 @@ export class ClerkAuthService {
 
   /**
    * Verify a JWT token with Clerk and get or create the user in our database
-   * Following Clerk's official documentation for manual JWT verification
    * @param token JWT token from the client
    * @returns User data if the token is valid, throws Unauthorized exception otherwise
    */
@@ -110,90 +109,80 @@ export class ClerkAuthService {
         throw new UnauthorizedException('Authentication service not properly configured');
       }
 
-      // Step 1: Decode the token to extract payload data (without verifying)
-      let decoded;
-      try {
-        decoded = jwt.decode(token, { complete: true });
-        this.logger.debug(`Token decoded successfully: ${JSON.stringify(decoded)}`);
-      } catch (error) {
-        this.logger.error(`Error decoding token: ${error.message}`);
-        throw new UnauthorizedException('Invalid token format');
+      // Verify the token by calling Clerk's API
+      const verifyResponse = await fetch('https://api.clerk.com/v1/tokens/verify', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${clerkSecretKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token }),
+      });
+
+      if (!verifyResponse.ok) {
+        this.logger.error(`Token verification failed: ${verifyResponse.status}`);
+        throw new UnauthorizedException('Invalid token');
       }
 
-      // Step 2: Extract necessary information
-      const clerkId = decoded?.payload?.sub;
+      const verifyData = await verifyResponse.json();
+      this.logger.debug(`Token verified successfully: ${JSON.stringify(verifyData)}`);
+
+      // Extract Clerk user ID
+      const clerkId = verifyData.sub || verifyData.payload?.sub;
       if (!clerkId) {
-        this.logger.error('No subject (sub) claim in token');
+        this.logger.error('No subject (sub) claim in token payload');
         throw new UnauthorizedException('Invalid token: missing user ID');
       }
 
-      // For now, skip the JWT verification step and focus on user creation
-      // This is temporary to help debug the issue
-      this.logger.warn('Temporarily skipping JWT verification to debug user creation');
+      // Find user in our database
+      let user = await this.prisma.user.findFirst({
+        where: { clerkId } as any,
+      });
 
-      // Step 5: Find user in our database
-      try {
-        let user = await this.prisma.user.findFirst({
-          where: { clerkId } as any,
+      // If user doesn't exist in our database, fetch details from Clerk
+      if (!user) {
+        this.logger.debug(`User not found in database for clerkId: ${clerkId}`);
+
+        // Fetch user details from Clerk API
+        const userResponse = await fetch(`https://api.clerk.com/v1/users/${clerkId}`, {
+          headers: {
+            'Authorization': `Bearer ${clerkSecretKey}`,
+            'Content-Type': 'application/json',
+          },
         });
 
-        // Step 6: If user doesn't exist in our database, fetch details from Clerk
-        if (!user) {
-          this.logger.debug(`User not found in database for clerkId: ${clerkId}`);
-
-          // Fetch user details from Clerk API
-          const userResponse = await fetch(`https://api.clerk.com/v1/users/${clerkId}`, {
-            headers: {
-              'Authorization': `Bearer ${clerkSecretKey}`,
-              'Content-Type': 'application/json',
-            },
-          });
-
-          if (!userResponse.ok) {
-            this.logger.error(`Failed to fetch user details from Clerk: ${userResponse.status}`);
-            throw new UnauthorizedException('Failed to fetch user details');
-          }
-
-          const userData = await userResponse.json();
-          this.logger.debug(`Clerk user data: ${JSON.stringify(userData)}`);
-
-          // Extract email and user details
-          const primaryEmailObj = userData.email_addresses?.find(email => email.id === userData.primary_email_address_id);
-          const primaryEmail = primaryEmailObj?.email_address || `${clerkId}@placeholder.com`;
-
-          const firstName = userData.first_name || '';
-          const lastName = userData.last_name || '';
-          const fullName = `${firstName} ${lastName}`.trim() || 'User';
-          const avatarUrl = userData.image_url || null;
-
-          this.logger.debug(`Creating user with email: ${primaryEmail}, name: ${fullName}`);
-
-          // Create user data DTO
-          const clerkUserData = new ClerkUserDataDto();
-          clerkUserData.clerkId = clerkId;
-          clerkUserData.email = primaryEmail;
-          clerkUserData.fullName = fullName;
-          clerkUserData.avatarUrl = avatarUrl;
-
-          // Create the user in our database
-          return await this.getOrCreateUser(clerkUserData);
+        if (!userResponse.ok) {
+          this.logger.error(`Failed to fetch user details from Clerk: ${userResponse.status}`);
+          throw new UnauthorizedException('Failed to fetch user details');
         }
 
-        this.logger.debug(`User found in database: ${user.id}`);
-        return new UserResponseDto(user);
-      } catch (dbError) {
-        this.logger.error(`Database error in verifyTokenAndGetUser: ${dbError.message}`, dbError.stack);
+        const userData = await userResponse.json();
+        this.logger.debug(`Clerk user data: ${JSON.stringify(userData)}`);
 
-        if (dbError instanceof Prisma.PrismaClientKnownRequestError) {
-          this.logger.error(`Prisma error code: ${dbError.code}`);
+        // Extract email and user details
+        const primaryEmailObj = userData.email_addresses?.find(email => email.id === userData.primary_email_address_id);
+        const primaryEmail = primaryEmailObj?.email_address || `${clerkId}@placeholder.com`;
 
-          if (dbError.code === 'P2003') {
-            this.logger.error(`Foreign key constraint failure. Field: ${dbError.meta?.field_name}`);
-          }
-        }
+        const firstName = userData.first_name || '';
+        const lastName = userData.last_name || '';
+        const fullName = `${firstName} ${lastName}`.trim() || 'User';
+        const avatarUrl = userData.image_url || null;
 
-        throw new UnauthorizedException('Failed to authenticate user');
+        this.logger.debug(`Creating user with email: ${primaryEmail}, name: ${fullName}`);
+
+        // Create user data DTO
+        const clerkUserData = new ClerkUserDataDto();
+        clerkUserData.clerkId = clerkId;
+        clerkUserData.email = primaryEmail;
+        clerkUserData.fullName = fullName;
+        clerkUserData.avatarUrl = avatarUrl;
+
+        // Create the user in our database
+        return await this.getOrCreateUser(clerkUserData);
       }
+
+      this.logger.debug(`User found in database: ${user.id}`);
+      return new UserResponseDto(user);
     } catch (error) {
       this.logger.error(`Error in verifyTokenAndGetUser: ${error.message}`, error.stack);
 
