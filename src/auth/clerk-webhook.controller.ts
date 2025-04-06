@@ -5,6 +5,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import * as crypto from 'crypto';
 import { Request } from 'express';
 import { ClerkUserDataDto } from './dto/clerk-auth.dto';
+import { Public } from './decorators/public.decorator';
 
 @ApiTags('auth')
 @Controller('webhooks/clerk')
@@ -17,6 +18,7 @@ export class ClerkWebhookController {
   ) { }
 
   @Post()
+  @Public()
   @ApiOperation({ summary: 'Handle Clerk webhook events' })
   @ApiResponse({ status: 200, description: 'Event processed successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized webhook call' })

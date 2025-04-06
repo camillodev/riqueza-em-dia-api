@@ -7,48 +7,49 @@ import {
   Body,
   Param,
   UseGuards,
-  Request,
   HttpCode,
   HttpStatus
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ClerkAuthGuard } from '../auth/clerk-auth.guard';
 import { CategorySchema, UpdateCategorySchema, CategoryResponse } from './category.schema';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { User } from '@clerk/backend';
 
 @Controller('categories')
-@UseGuards(JwtAuthGuard)
+  @UseGuards(ClerkAuthGuard)
 export class CategoriesController {
   constructor(private categoriesService: CategoriesService) { }
 
   @Get()
-  async getAllCategories(@Request() req): Promise<CategoryResponse[]> {
-    return this.categoriesService.getAllCategories(req.user.id);
+  async getAllCategories(@CurrentUser() user: User): Promise<CategoryResponse[]> {
+    return this.categoriesService.getAllCategories(user.id);
   }
 
   @Post()
   async createCategory(
     @Body(new ZodValidationPipe(CategorySchema)) body,
-    @Request() req,
+    @CurrentUser() user: User,
   ): Promise<CategoryResponse> {
-    return this.categoriesService.createCategory(body, req.user.id);
+    return this.categoriesService.createCategory(body, user.id);
   }
 
   @Put(':id')
   async updateCategory(
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateCategorySchema)) body,
-    @Request() req,
+    @CurrentUser() user: User,
   ): Promise<CategoryResponse> {
-    return this.categoriesService.updateCategory(id, body, req.user.id);
+    return this.categoriesService.updateCategory(id, body, user.id);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteCategory(
     @Param('id') id: string,
-    @Request() req,
+    @CurrentUser() user: User,
   ): Promise<void> {
-    await this.categoriesService.deleteCategory(id, req.user.id);
+    await this.categoriesService.deleteCategory(id, user.id);
   }
 } 

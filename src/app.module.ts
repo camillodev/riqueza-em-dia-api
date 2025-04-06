@@ -9,12 +9,15 @@ import { CommonModule } from './common/common.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { ReportsModule } from './reports/reports.module';
 import { CategoriesModule } from './categories/categories.module';
-import { ClerkClientProvider } from './auth/providers/clerk-client.provider';
+import { ClerkModule } from './auth/providers/clerk.module';
+import { APP_GUARD } from '@nestjs/core';
+import { ClerkAuthGuard } from './auth/clerk-auth.guard';
 
 @Module({
   imports: [
     CommonModule,
     PrismaModule,
+    ClerkModule,
     UsersModule,
     AuthModule,
     AccountsModule,
@@ -25,7 +28,10 @@ import { ClerkClientProvider } from './auth/providers/clerk-client.provider';
   controllers: [AppController],
   providers: [
     AppService,
-    ClerkClientProvider,
+    {
+      provide: APP_GUARD,
+      useClass: ClerkAuthGuard,
+    },
   ],
 })
 export class AppModule { }
