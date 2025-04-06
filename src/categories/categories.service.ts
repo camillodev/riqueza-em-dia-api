@@ -18,6 +18,8 @@ export class CategoriesService {
   }
 
   async createCategory(data: CreateCategoryDto, userId: string): Promise<CategoryResponse> {
+    console.log(' ----- createCategory -----')
+    console.log(userId);
     const category = await this.categoryRepository.create(data, userId);
     return {
       id: category.id,
