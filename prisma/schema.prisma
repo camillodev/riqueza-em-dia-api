@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,6 +5,174 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String                    @id @default(uuid())
+  email            String                    @unique
+  fullName         String                    @map("full_name")
+  avatarUrl        String?
+  role             UserRole                  @default(trial)
+  createdAt        DateTime                  @default(now()) @map("created_at")
+  updatedAt        DateTime                  @updatedAt @map("updated_at")
+  lastLoginAt      DateTime?                 @map("last_login_at")
+  stripeId         String?                   @unique
+  clerkId          String?                   @unique @map("clerk_id")
+  accounts         Account[]
+  categories       Category[]
+  payments         Payment[]
+  subscriptions    Subscription[]
+  transactions     Transaction[]
+  preference       UserPreference?
+  budgetGoals      BudgetGoal[]              @relation("UserToBudgetGoal")
+  monthlySummaries MonthlyFinancialSummary[] @relation("UserToMonthlySummary")
+  supportTickets   SupportTicket[]           @relation("UserToSupportTicket")
+
+  @@map("users")
+}
+
+model Account {
+  id           String        @id @default(uuid())
+  name         String
+  balance      Decimal       @db.Decimal(15, 2)
+  color        String
+  createdAt    DateTime      @default(now())
+  isArchived   Boolean       @default(false)
+  updatedAt    DateTime      @updatedAt
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+}
+
+model Category {
+  id           String          @id @default(uuid())
+  name         String
+  icon         String
+  color        String
+  type         TransactionType
+  createdAt    DateTime        @default(now())
+  isDefault    Boolean         @default(false)
+  updatedAt    DateTime        @updatedAt
+  userId       String
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  budgetGoals  BudgetGoal[]
+}
+
+model Transaction {
+  id          String            @id @default(uuid())
+  amount      Decimal           @db.Decimal(15, 2)
+  description String
+  date        DateTime
+  type        TransactionType
+  accountId   String
+  categoryId  String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  userId      String
+  status      TransactionStatus @default(pending)
+  account     Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  category    Category?         @relation(fields: [categoryId], references: [id])
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id                   String               @id @default(uuid())
+  status               SubscriptionStatus
+  canceledAt           DateTime?
+  createdAt            DateTime             @default(now())
+  currentPeriodEnd     DateTime
+  currentPeriodStart   DateTime
+  planType             SubscriptionPlanType
+  stripeSubscriptionId String?              @unique
+  updatedAt            DateTime             @updatedAt
+  userId               String
+  payments             Payment[]
+  user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  amount          Decimal       @db.Decimal(15, 2)
+  currency        String
+  status          PaymentStatus
+  createdAt       DateTime      @default(now())
+  invoiceUrl      String?
+  paymentMethod   String
+  stripePaymentId String
+  subscriptionId  String
+  userId          String
+  subscription    Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SupportTicket {
+  id         String              @id @default(uuid())
+  userId     String              @map("user_id")
+  subject    String
+  message    String
+  status     SupportTicketStatus @default(open)
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+  resolvedAt DateTime?           @map("resolved_at")
+  responses  SupportResponse[]
+  user       User                @relation("UserToSupportTicket", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("support_tickets")
+}
+
+model SupportResponse {
+  id            String        @id @default(uuid())
+  message       String
+  createdAt     DateTime      @default(now())
+  responderType ResponderType
+  ticketId      String
+  ticket        SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+model UserPreference {
+  id                   String          @id @default(uuid())
+  theme                ThemePreference @default(system)
+  language             String          @default("pt-BR")
+  currency             String          @default("BRL")
+  createdAt            DateTime        @default(now())
+  notificationSettings Json?
+  updatedAt            DateTime        @updatedAt
+  userId               String          @unique
+  user                 User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MonthlyFinancialSummary {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  monthYear String   @map("month_year")
+  income    Decimal  @db.Decimal(15, 2)
+  expense   Decimal  @db.Decimal(15, 2)
+  balance   Decimal  @db.Decimal(15, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation("UserToMonthlySummary", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, monthYear])
+  @@map("monthly_financial_summaries")
+}
+
+model BudgetGoal {
+  id         String       @id @default(uuid())
+  userId     String       @map("user_id")
+  categoryId String?      @map("category_id")
+  name       String
+  amount     Decimal      @db.Decimal(15, 2)
+  period     BudgetPeriod
+  startDate  DateTime     @map("start_date")
+  endDate    DateTime?    @map("end_date")
+  isActive   Boolean      @default(true) @map("is_active")
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+  category   Category?    @relation(fields: [categoryId], references: [id])
+  user       User         @relation("UserToBudgetGoal", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("budget_goals")
 }
 
 enum TransactionType {
@@ -69,182 +231,4 @@ enum UserRole {
   premium
   standard
   trial
-}
-
-model User {
-  id                String             @id @default(uuid())
-  email             String             @unique
-  fullName          String             @map("full_name")
-  avatarUrl         String?
-  role              UserRole           @default(trial)
-  createdAt         DateTime           @default(now()) @map("created_at")
-  updatedAt         DateTime           @updatedAt @map("updated_at")
-  lastLoginAt       DateTime?          @map("last_login_at")
-  stripeId          String?            @unique
-  clerkId           String?            @unique @map("clerk_id")
-  accounts          Account[]
-  categories        Category[]
-  transactions      Transaction[]
-  subscriptions     Subscription[]
-  payments          Payment[]
-  supportTickets    SupportTicket[]    @relation("UserToSupportTicket")
-  preference        UserPreference?
-  monthlySummaries  MonthlyFinancialSummary[] @relation("UserToMonthlySummary")
-  budgetGoals       BudgetGoal[]       @relation("UserToBudgetGoal")
-
-  @@map("users")
-}
-
-model Account {
-  id          String        @id @default(uuid())
-  userId      String
-  name        String
-  balance     Decimal       @db.Decimal(15, 2)
-  color       String
-  isArchived  Boolean       @default(false)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions Transaction[]
-}
-
-model Category {
-  id          String           @id @default(uuid())
-  userId      String
-  name        String
-  type        TransactionType
-  icon        String
-  color       String
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  isDefault   Boolean          @default(false)
-  
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions Transaction[]
-  budgetGoals BudgetGoal[]
-}
-
-model Transaction {
-  id          String            @id @default(uuid())
-  userId      String
-  accountId   String
-  categoryId  String?
-  amount      Decimal           @db.Decimal(15, 2)
-  description String
-  date        DateTime
-  type        TransactionType
-  status      TransactionStatus @default(pending)
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  
-  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account     Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  category    Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-}
-
-model Subscription {
-  id                   String               @id @default(uuid())
-  userId               String
-  stripeSubscriptionId String?              @unique
-  planType             SubscriptionPlanType
-  status               SubscriptionStatus
-  currentPeriodStart   DateTime
-  currentPeriodEnd     DateTime
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
-  canceledAt           DateTime?
-  
-  user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  payments             Payment[]
-}
-
-model Payment {
-  id               String        @id @default(uuid())
-  userId           String
-  subscriptionId   String
-  stripePaymentId  String
-  amount           Decimal       @db.Decimal(15, 2)
-  currency         String
-  status           PaymentStatus
-  paymentMethod    String
-  invoiceUrl       String?
-  createdAt        DateTime      @default(now())
-  
-  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subscription     Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
-}
-
-model SupportTicket {
-  id          String              @id @default(uuid())
-  userId      String              @map("user_id")
-  subject     String
-  message     String              @db.Text
-  status      SupportTicketStatus @default(open)
-  createdAt   DateTime            @default(now()) @map("created_at")
-  updatedAt   DateTime            @updatedAt @map("updated_at")
-  resolvedAt  DateTime?           @map("resolved_at")
-  
-  user        User                @relation("UserToSupportTicket", fields: [userId], references: [id], onDelete: Cascade)
-  responses   SupportResponse[]
-
-  @@map("support_tickets")
-}
-
-model SupportResponse {
-  id             String        @id @default(uuid())
-  ticketId       String
-  responderType  ResponderType
-  message        String        @db.Text
-  createdAt      DateTime      @default(now())
-  
-  ticket         SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-}
-
-model UserPreference {
-  id                  String           @id @default(uuid())
-  userId              String           @unique
-  theme               ThemePreference  @default(system)
-  language            String           @default("pt-BR")
-  currency            String           @default("BRL")
-  notificationSettings Json?
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
-  
-  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model MonthlyFinancialSummary {
-  id         String   @id @default(uuid())
-  userId     String   @map("user_id")
-  monthYear  String   @map("month_year")
-  income     Decimal  @db.Decimal(15, 2)
-  expense    Decimal  @db.Decimal(15, 2)
-  balance    Decimal  @db.Decimal(15, 2)
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-  
-  user       User     @relation("UserToMonthlySummary", fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, monthYear])
-  @@map("monthly_financial_summaries")
-}
-
-model BudgetGoal {
-  id          String       @id @default(uuid())
-  userId      String       @map("user_id")
-  categoryId  String?      @map("category_id")
-  name        String
-  amount      Decimal      @db.Decimal(15, 2)
-  period      BudgetPeriod
-  startDate   DateTime     @map("start_date")
-  endDate     DateTime?    @map("end_date")
-  isActive    Boolean      @default(true) @map("is_active")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
-  
-  user        User         @relation("UserToBudgetGoal", fields: [userId], references: [id], onDelete: Cascade)
-  category    Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-
-  @@map("budget_goals")
 }

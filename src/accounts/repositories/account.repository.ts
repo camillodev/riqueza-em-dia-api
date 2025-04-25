@@ -33,18 +33,15 @@ export class AccountRepository extends BaseRepository<
     filter: { isArchived?: boolean } = {},
     { page, limit, sortBy, sortOrder }: PaginationQueryParams,
   ): Promise<[Account[], number]> {
-    // Build the full filter
     const where: any = { userId };
 
-    // Add archive filter if provided
     if (filter.isArchived !== undefined) {
       where.isArchived = filter.isArchived;
     }
 
-    // Get total count for pagination
     const total = await this.prisma.account.count({ where });
+    this.logger.debug(`Total accounts found: ${total}`);
 
-    // Get items for current page with sorting
     const items = await this.prisma.account.findMany({
       where,
       skip: (page - 1) * limit,
